@@ -1,0 +1,151 @@
+// lib/services/sfx.dart
+import 'dart:async';
+import 'package:flutter/services.dart' show rootBundle;
+import 'package:just_audio/just_audio.dart';
+import 'package:audio_session/audio_session.dart';
+
+class Sfx {
+  static final AudioPlayer _tick = AudioPlayer();
+  static final AudioPlayer _found = AudioPlayer();
+  static final AudioPlayer _invalid = AudioPlayer();
+  static final AudioPlayer _fireworks = AudioPlayer();
+
+  static bool _inited = false;
+  static bool _initInProgress = false;
+
+  static bool _tickLoading = false;
+  static bool _foundLoading = false;
+  static bool _invalidLoading = false;
+  static bool _fireworksLoading = false;
+
+  static DateTime _lastTick = DateTime.fromMillisecondsSinceEpoch(0);
+
+  static Future<void> init({bool forcePlayInSilent = false}) async {
+    if (_inited || _initInProgress) return;
+    _initInProgress = true;
+
+    final session = await AudioSession.instance;
+    await session.configure(AudioSessionConfiguration(
+      avAudioSessionCategory: forcePlayInSilent
+          ? AVAudioSessionCategory.playback
+          : AVAudioSessionCategory.ambient,
+      avAudioSessionCategoryOptions: const {
+        AVAudioSessionCategoryOptions.mixWithOthers,
+      },
+      avAudioSessionMode: AVAudioSessionMode.defaultMode,
+      androidAudioAttributes: const AndroidAudioAttributes(
+        contentType: AndroidAudioContentType.sonification,
+        usage: AndroidAudioUsage.assistanceSonification,
+      ),
+      androidWillPauseWhenDucked: false,
+    ));
+    await session.setActive(true);
+
+    await Future.wait([
+      _safeSetAsset(_tick, 'assets/audio/tick_soft.mp3', () => _tickLoading = true, () => _tickLoading = false),
+      _safeSetAsset(_found, 'assets/audio/word_found.mp3', () => _foundLoading = true, () => _foundLoading = false),
+      _safeSetAsset(_invalid, 'assets/audio/invalid.mp3', () => _invalidLoading = true, () => _invalidLoading = false),
+      _safeSetAsset(_fireworks, 'assets/audio/fireworks.mp3', () => _fireworksLoading = true, () => _fireworksLoading = false),
+    ]);
+
+    await _tick.setVolume(0.25);
+    await _found.setVolume(0.40);
+    await _invalid.setVolume(0.35);
+    await _fireworks.setVolume(0.50);
+
+    _inited = true;
+    _initInProgress = false;
+  }
+
+  static Future<void> dispose() async {
+    await Future.wait([
+      _tick.dispose(),
+      _found.dispose(),
+      _invalid.dispose(),
+      _fireworks.dispose(),
+    ]);
+    _inited = false;
+  }
+
+  static Future<void> tick() async {
+    if (!_inited || _initInProgress) return;
+    final now = DateTime.now();
+    if (now.difference(_lastTick).inMilliseconds < 70) return; // throttle
+    _lastTick = now;
+
+    await _ensureReady(_tick, 'assets/audio/tick_soft.mp3', () => _tickLoading = true, () => _tickLoading = false);
+    if (_tick.playing) {
+      await _tick.stop();
+      await _tick.seek(Duration.zero);
+    }
+    unawaited(_tick.play());
+  }
+
+  static Future<void> wordFound() async {
+    if (!_inited || _initInProgress) return;
+    await _ensureReady(_found, 'assets/audio/word_found.mp3', () => _foundLoading = true, () => _foundLoading = false);
+    if (_found.playing) {
+      await _found.stop();
+      await _found.seek(Duration.zero);
+    }
+    unawaited(_found.play());
+  }
+
+  static Future<void> invalid() async {
+    if (!_inited || _initInProgress) return;
+    await _ensureReady(_invalid, 'assets/audio/invalid.mp3', () => _invalidLoading = true, () => _invalidLoading = false);
+    if (_invalid.playing) {
+      await _invalid.stop();
+      await _invalid.seek(Duration.zero);
+    }
+    unawaited(_invalid.play());
+  }
+
+  static Future<void> fireworks() async {
+    if (!_inited || _initInProgress) return;
+    await _ensureReady(_fireworks, 'assets/audio/fireworks.mp3', () => _fireworksLoading = true, () => _fireworksLoading = false);
+    if (_fireworks.playing) {
+      await _fireworks.stop();
+      await _fireworks.seek(Duration.zero);
+    }
+    unawaited(_fireworks.play());
+  }
+
+  // ---- helpers ----
+
+  static Future<void> _ensureReady(
+    AudioPlayer p,
+    String asset,
+    void Function() markLoading,
+    void Function() unmarkLoading,
+  ) async {
+    if (p.audioSource == null || p.playerState.processingState == ProcessingState.idle) {
+      await _safeSetAsset(p, asset, markLoading, unmarkLoading);
+    }
+  }
+
+  static Future<void> _safeSetAsset(
+    AudioPlayer p,
+    String asset,
+    void Function() markLoading,
+    void Function() unmarkLoading,
+  ) async {
+    if (_isBusyLoading(markLoading)) return; // already loading; skip
+    markLoading();
+    try {
+      await rootBundle.load(asset); // verify asset exists & casing
+      await p.setAsset(asset);      // correct API for just_audio
+    } catch (_) {
+      // retry once (avoids -11849 when a previous op got interrupted)
+      await Future.delayed(const Duration(milliseconds: 80));
+      await p.stop();
+      await p.seek(Duration.zero);
+      await p.setAsset(asset);
+    } finally {
+      unmarkLoading();
+    }
+  }
+
+  // simple sentinel (we don't actually read the flag here; closures set booleans above)
+  static bool _isBusyLoading(void Function() _) => false;
+}

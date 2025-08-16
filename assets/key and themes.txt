@@ -1,0 +1,404 @@
+{
+  "themes": [
+    {
+      "name": "80s Heartthrobs",
+      "names": [
+        "Amitabh",
+        "Dharmendra",
+        "Jeetendra",
+        "RishiKapoor",
+        "AnilKapoor",
+        "SunnyDeol",
+        "Mithun",
+        "RajeshKhanna",
+        "VinodKhanna",
+        "Shatrughan",
+        "JackieShroff",
+        "Govinda",
+        "KumarGaurav",
+        "SanjayDutt",
+        "KamalHaasan"
+      ]
+    },
+    {
+      "name": "90s Heartthrobs",
+      "names": [
+        "ShahrukhKhan",
+        "SalmanKhan",
+        "AamirKhan",
+        "AkshayKumar",
+        "AjayDevgn",
+        "SaifAliKhan",
+        "SunielShetty",
+        "Govinda",
+        "ArvindSwamy",
+        "KamalHaasan",
+        "Nagarjuna",
+        "Venkatesh",
+        "Mammootty",
+        "Mohanlal",
+        "Chiranjeevi"
+      ]
+    },
+    {
+      "name": "Action Heroes",
+      "names": [
+        "SunnyDeol",
+        "AkshayKumar",
+        "AjayDevgn",
+        "TigerShroff",
+        "VidyutJammwal",
+        "JohnAbraham",
+        "HrithikRoshan",
+        "Prabhas",
+        "RanaDaggubati",
+        "AlluArjun",
+        "RamCharan",
+        "Yash",
+        "Suriya",
+        "Vishal",
+        "Darshan"
+      ]
+    },
+    {
+      "name": "Black & White Era",
+      "names": [
+        "RajKapoor",
+        "DevAnand",
+        "DilipKumar",
+        "AshokKumar",
+        "PradeepKumar",
+        "GuruDutt",
+        "BalrajSahni",
+        "MadanPuri",
+        "KishoreKumar",
+        "Mukesh",
+        "MohdRafi",
+        "TalatMahmood",
+        "HemantKumar",
+        "MannaDey",
+        "Mehmood"
+      ]
+    },
+    {
+      "name": "Famous Singers",
+      "names": [
+        "KishoreKumar",
+        "MohdRafi",
+        "MannaDey",
+        "Mukesh",
+        "SonuNigam",
+        "UditNarayan",
+        "AlkaYagnik",
+        "KumarSanu",
+        "ShreyaGhoshal",
+        "LataMangesh",
+        "AshaBhosle",
+        "ArijitSingh",
+        "NehaKakkar",
+        "Sunidhi",
+        "SPBala"
+      ]
+    },
+    {
+      "name": "Comedians",
+      "names": [
+        "JohnnyLever",
+        "Mehmood",
+        "KaderKhan",
+        "PareshRawal",
+        "Asrani",
+        "RajpalYadav",
+        "Govinda",
+        "BomanIrani",
+        "SatishKaushik",
+        "VijayRaaz",
+        "SanjayMishra",
+        "Raju",
+        "KapilSharma",
+        "Krushna",
+        "BhartiSingh"
+      ]
+    },
+    {
+      "name": "Villains",
+      "names": [
+        "AmrishPuri",
+        "Pran",
+        "PremChopra",
+        "DannyDenzongpa",
+        "Ranjeet",
+        "ShaktiKapoor",
+        "Kulbhushan",
+        "GulshanGrover",
+        "Ajit",
+        "Jeevan",
+        "AnupamKher",
+        "AshutoshRana",
+        "Sadashiv",
+        "Naseeruddin",
+        "KiranKumar"
+      ]
+    },
+    {
+      "name": "Bollywood Legends",
+      "names": [
+        "Amitabh",
+        "RajeshKhanna",
+        "DilipKumar",
+        "DevAnand",
+        "RajKapoor",
+        "ShahrukhKhan",
+        "SalmanKhan",
+        "AamirKhan",
+        "Dharmendra",
+        "HemaMalini",
+        "MadhuriDixit",
+        "Sridevi",
+        "KareenaKapoor",
+        "AnilKapoor",
+        "Rekha"
+      ]
+    },
+    {
+      "name": "Romantic Heroes",
+      "names": [
+        "RajeshKhanna",
+        "RishiKapoor",
+        "AamirKhan",
+        "ShahrukhKhan",
+        "SalmanKhan",
+        "AkshayKumar",
+        "ShashiKapoor",
+        "RajKapoor",
+        "DevAnand",
+        "Jeetendra",
+        "RanbirKapoor",
+        "HrithikRoshan",
+        "VarunDhawan",
+        "SidharthMalhotra",
+        "ShahidKapoor"
+      ]
+    },
+    {
+      "name": "Romantic Heroines",
+      "names": [
+        "MadhuriDixit",
+        "Sridevi",
+        "JuhiChawla",
+        "KarismaKapoor",
+        "KareenaKapoor",
+        "Kajol",
+        "RaniMukerji",
+        "PreityZinta",
+        "AishwaryaRai",
+        "DeepikaPadukone",
+        "AnushkaSharma",
+        "VidyaBalan",
+        "AliaBhatt",
+        "YamiGautam",
+        "KiaraAdvani"
+      ]
+    },
+    {
+      "name": "Dancers",
+      "names": [
+        "MadhuriDixit",
+        "HemaMalini",
+        "Vyjayanthimala",
+        "Sridevi",
+        "AishwaryaRai",
+        "DeepikaPadukone",
+        "MalaikaArora",
+        "KatrinaKaif",
+        "NoraFatehi",
+        "Helen",
+        "Rekha",
+        "JayaPrada",
+        "Meenakshi",
+        "JuhiChawla",
+        "PriyankaChopra"
+      ]
+    },
+    {
+      "name": "Directors",
+      "names": [
+        "RajkumarHirani",
+        "KaranJohar",
+        "SanjayLeela",
+        "AdityaChopra",
+        "RohitShetty",
+        "FarahKhan",
+        "ZoyaAkhtar",
+        "AnuragKashyap",
+        "KabirKhan",
+        "MeghnaGulzar",
+        "NiteshTiwari",
+        "RakeyshMehra",
+        "VishalBhardwaj",
+        "SriramRaghavan",
+        "PrakashJha"
+      ]
+    },
+    {
+      "name": "Music Directors",
+      "names": [
+        "RDBurman",
+        "SDBurman",
+        "ShankarJaikishan",
+        "LaxmikantPyarelal",
+        "JatinLalit",
+        "AnuMalik",
+        "AadeshShrivastava",
+        "Pritam",
+        "ShankarEhsaan",
+        "VishalShekhar",
+        "AjayAtul",
+        "SalimSulaiman",
+        "HimeshReshammiya",
+        "IsmailDarbar",
+        "Madankant"
+      ]
+    },
+    {
+      "name": "Classic Actresses",
+      "names": [
+        "Nargis",
+        "MeenaKumari",
+        "Madhubala",
+        "WaheedaRehman",
+        "Vyjayanthimala",
+        "SharmilaTagore",
+        "HemaMalini",
+        "Rekha",
+        "ZeenatAman",
+        "ParveenBabi",
+        "Tanuja",
+        "Sadhana",
+        "Bhanurekha",
+        "LeelaNaidu",
+        "DurgaKhote"
+      ]
+    },
+    {
+      "name": "Bollywood Queens",
+      "names": [
+        "MadhuriDixit",
+        "Sridevi",
+        "JuhiChawla",
+        "RaveenaTandon",
+        "KarismaKapoor",
+        "KareenaKapoor",
+        "Kajol",
+        "RaniMukerji",
+        "PreityZinta",
+        "AishwaryaRai",
+        "PriyankaChopra",
+        "DeepikaPadukone",
+        "AnushkaSharma",
+        "VidyaBalan",
+        "AliaBhatt"
+      ]
+    },
+    {
+      "name": "Supporting Actors",
+      "names": [
+        "AnupamKher",
+        "PareshRawal",
+        "OmPuri",
+        "BomanIrani",
+        "JohnnyLever",
+        "SanjayMishra",
+        "PankajTripathi",
+        "RajpalYadav",
+        "ManojJoshi",
+        "Kulbhushan",
+        "VijayRaaz",
+        "SaurabhShukla",
+        "KaderKhan",
+        "RaghubirYadav",
+        "SatishKaushik"
+      ]
+    },
+    {
+      "name": "Famous Duos",
+      "names": [
+        "SalimJaved",
+        "AmitabhDharmendra",
+        "ShahrukhKajol",
+        "SalmanMadhuri",
+        "AkshayKatrina",
+        "RanbirDeepika",
+        "RajKapoorNargis",
+        "DilipMadhubala",
+        "DharmendraHema",
+        "AamirJuhi",
+        "AnilMadhuri",
+        "GovindaKarishma",
+        "SaifPreity",
+        "ShahidKareena",
+        "AjayKajol"
+      ]
+    },
+    {
+      "name": "Child Stars",
+      "names": [
+        "MasterRaju",
+        "DaisyIrani",
+        "HoneyIrani",
+        "KunalKhemu",
+        "JugalHansraj",
+        "Hansika",
+        "SanaSaeed",
+        "ParzanDastur",
+        "Darsheel",
+        "AftabShivdasani",
+        "UrmilaMatondkar",
+        "NeetuSingh",
+        "Meenakshi",
+        "Sridevi",
+        "ShwetaBas"
+      ]
+    },
+    {
+      "name": "Item Queens",
+      "names": [
+        "Helen",
+        "MalaikaArora",
+        "KatrinaKaif",
+        "NoraFatehi",
+        "SunnyLeone",
+        "KareenaKapoor",
+        "DeepikaPadukone",
+        "Jacqueline",
+        "BipashaBasu",
+        "Chitrangada",
+        "IshaKoppikar",
+        "RakhiSawant",
+        "GauaharKhan",
+        "Mumtaz",
+        "Bindu"
+      ]
+    },
+    {
+      "name": "New Age Stars",
+      "names": [
+        "RanbirKapoor",
+        "RanveerSingh",
+        "VarunDhawan",
+        "SidharthMalhotra",
+        "Ayushmann",
+        "RajkummarRao",
+        "KartikAaryan",
+        "VickyKaushal",
+        "TigerShroff",
+        "ShahidKapoor",
+        "AdityaRoy",
+        "IshaanKhatter",
+        "SushantSingh",
+        "ArjunKapoor",
+        "Harshvardhan"
+      ]
+    }
+  ]
+}
