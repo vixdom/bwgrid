@@ -1,7 +1,7 @@
 {
   "themes": [
     {
-      "name": "80s Heartthrobs",
+      "name": "80s Heroes",
       "names": [
         "Amitabh",
         "Dharmendra",
@@ -21,7 +21,7 @@
       ]
     },
     {
-      "name": "90s Heartthrobs",
+      "name": "90s Heroes",
       "names": [
         "ShahrukhKhan",
         "SalmanKhan",

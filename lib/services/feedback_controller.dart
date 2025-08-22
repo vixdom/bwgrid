@@ -18,14 +18,17 @@ class FeedbackController with ChangeNotifier {
   final AudioPlayer _found = AudioPlayer();
   final AudioPlayer _invalid = AudioPlayer();
   final AudioPlayer _fireworks = AudioPlayer();
+  final AudioPlayer _clue = AudioPlayer();
   String? _tickAssetName;
   String? _foundAssetName;
   String? _invalidAssetName;
   String? _fireworksAssetName;
+  String? _clueAssetName;
   int? _tickMs;
   int? _foundMs;
   int? _invalidMs;
   int? _fireworksMs;
+  int? _clueMs;
 
   DateTime _lastTickAt = DateTime.fromMillisecondsSinceEpoch(0);
   Duration tickThrottle = const Duration(milliseconds: 50); // 40-60ms
@@ -34,10 +37,12 @@ class FeedbackController with ChangeNotifier {
   bool _foundReady = false;
   bool _invalidReady = false;
   bool _fireworksReady = false;
+  bool _clueReady = false;
   String? _tickError;
   String? _foundError;
   String? _invalidError;
   String? _fireworksError;
+  String? _clueError;
   static const MethodChannel _hapticChannel = MethodChannel('bwgrid/haptics');
 
   FeedbackController(this.settings);
@@ -46,18 +51,22 @@ class FeedbackController with ChangeNotifier {
   String get foundAssetName => _foundAssetName ?? 'unknown';
   String get invalidAssetName => _invalidAssetName ?? 'unknown';
   String get fireworksAssetName => _fireworksAssetName ?? 'unknown';
+  String get clueAssetName => _clueAssetName ?? 'unknown';
   int? get tickDurationMs => _tickMs;
   int? get foundDurationMs => _foundMs;
   int? get invalidDurationMs => _invalidMs;
   int? get fireworksDurationMs => _fireworksMs;
+  int? get clueDurationMs => _clueMs;
   bool get tickReady => _tickReady;
   bool get foundReady => _foundReady;
   bool get invalidReady => _invalidReady;
   bool get fireworksReady => _fireworksReady;
+  bool get clueReady => _clueReady;
   String? get tickError => _tickError;
   String? get foundError => _foundError;
   String? get invalidError => _invalidError;
   String? get fireworksError => _fireworksError;
+  String? get clueError => _clueError;
 
   Future<void> _initializeTickSound() async {
     try {
@@ -149,6 +158,28 @@ class FeedbackController with ChangeNotifier {
     }
   }
 
+  Future<void> _initializeClueSound() async {
+    try {
+      debugPrint('Initializing clue sound...');
+      final d = await _clue.setAsset(_assetPath('clue.wav'));
+      _clue.setVolume(settings.volume);
+      _clueReady = true;
+      _clueAssetName = 'clue.wav';
+      _clueMs = d?.inMilliseconds;
+      _clueError = null;
+      debugPrint('Clue sound initialized successfully (asset: ${_clueAssetName!}, duration: ${_clueMs ?? -1}ms)');
+      notifyListeners();
+    } catch (e) {
+      final msg = e is PlatformException
+          ? 'code=${e.code}, message=${e.message}, details=${e.details}'
+          : e.toString();
+      debugPrint('Error initializing clue sound: $msg');
+      _clueReady = false;
+      _clueError = msg;
+      notifyListeners();
+    }
+  }
+
   Future<void> init() async {
     debugPrint('Initializing FeedbackController...');
     // Disable audio on web during development when assets may be placeholders
@@ -170,6 +201,7 @@ class FeedbackController with ChangeNotifier {
         _initializeFoundSound(),
         _initializeInvalidSound(),
         _initializeFireworksSound(),
+  _initializeClueSound(),
       ]);
       
       _audioAvailable = true;
@@ -178,7 +210,7 @@ class FeedbackController with ChangeNotifier {
       
       // Verify all sounds are ready after a short delay
       Future.delayed(const Duration(seconds: 1), () {
-        debugPrint('Sound status after delay - tick:$_tickReady, found:$_foundReady, invalid:$_invalidReady, fireworks:$_fireworksReady');
+  debugPrint('Sound status after delay - tick:$_tickReady, found:$_foundReady, invalid:$_invalidReady, fireworks:$_fireworksReady, clue:$_clueReady');
       });
       
     } catch (e) {
@@ -229,6 +261,7 @@ class FeedbackController with ChangeNotifier {
       _found.setVolume(v);
       _invalid.setVolume(v);
       _fireworks.setVolume(v);
+  _clue.setVolume(v);
   // no select player
     }
     if (!kIsWeb) {
@@ -246,6 +279,7 @@ class FeedbackController with ChangeNotifier {
       _initializeFoundSound(),
       _initializeInvalidSound(),
       _initializeFireworksSound(),
+  _initializeClueSound(),
     ]);
   }
 
@@ -291,17 +325,34 @@ class FeedbackController with ChangeNotifier {
     await _playSound(_invalid, label: 'invalid', asset: _invalidAssetName);
   }
 
-  Future<void> playFireworks() async {
+  Future<void> playFireworks({Duration? maxDuration}) async {
     debugPrint('playFireworks called - audioAvailable:$_audioAvailable, soundEnabled:${settings.soundEnabled}, _fireworksReady:$_fireworksReady');
     if (!_audioAvailable || !_fireworksReady || !settings.soundEnabled) {
       debugPrint('playFireworks skipped: ${!_audioAvailable ? 'audio not available' : !_fireworksReady ? 'not ready' : 'sound disabled'}');
       return;
     }
     try {
-    await _playSound(_fireworks, label: 'fireworks', asset: _fireworksAssetName);
+      await _playSound(_fireworks, label: 'fireworks', asset: _fireworksAssetName);
+      if (maxDuration != null) {
+        // Stop fireworks after the requested duration to cap playback
+        Future.delayed(maxDuration, () async {
+          try {
+            await _fireworks.stop();
+          } catch (_) {}
+        });
+      }
     } catch (e) {
       debugPrint('playFireworks error: $e');
     }
+  }
+
+  Future<void> playClue() async {
+    debugPrint('playClue called - audioAvailable:$_audioAvailable, soundEnabled:${settings.soundEnabled}, _clueReady:$_clueReady');
+    if (!_audioAvailable || !_clueReady || !settings.soundEnabled) {
+      debugPrint('playClue skipped: ${!_audioAvailable ? 'audio not available' : !_clueReady ? 'not ready' : 'sound disabled'}');
+      return;
+    }
+    await _playSound(_clue, label: 'clue', asset: _clueAssetName);
   }
 
   // Debug utility: stop any playing sounds
@@ -407,6 +458,7 @@ class FeedbackController with ChangeNotifier {
     _found.dispose();
     _invalid.dispose();
     _fireworks.dispose();
+  _clue.dispose();
     super.dispose();
   }
 }

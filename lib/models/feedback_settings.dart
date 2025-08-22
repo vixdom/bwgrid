@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../constants/app_themes.dart';
 
 enum HapticStrength { light, medium, heavy }
 
@@ -8,6 +9,11 @@ class FeedbackSettings extends ChangeNotifier {
   bool hapticsEnabled;
   HapticStrength hapticStrength;
   bool playInSilentMode; // iOS only preference
+  bool hintsEnabled;
+  // Accessibility: when null, follow system. true/false overrides system.
+  bool? reduceMotionOverride;
+  // App theme selection
+  AppTheme theme;
 
   FeedbackSettings({
     this.soundEnabled = true,
@@ -15,6 +21,9 @@ class FeedbackSettings extends ChangeNotifier {
     this.hapticsEnabled = true,
     this.hapticStrength = HapticStrength.medium,
   this.playInSilentMode = true,
+  this.hintsEnabled = true,
+  this.reduceMotionOverride,
+  this.theme = AppTheme.hirani,
   });
 
   void setSoundEnabled(bool v) {
@@ -45,6 +54,24 @@ class FeedbackSettings extends ChangeNotifier {
   void setPlayInSilentMode(bool v) {
     if (playInSilentMode == v) return;
     playInSilentMode = v;
+    notifyListeners();
+  }
+
+  void setHintsEnabled(bool v) {
+    if (hintsEnabled == v) return;
+    hintsEnabled = v;
+    notifyListeners();
+  }
+
+  void setReduceMotionOverride(bool? v) {
+    if (reduceMotionOverride == v) return;
+    reduceMotionOverride = v; // null means follow system
+    notifyListeners();
+  }
+
+  void setTheme(AppTheme t) {
+    if (theme == t) return;
+    theme = t;
     notifyListeners();
   }
 }

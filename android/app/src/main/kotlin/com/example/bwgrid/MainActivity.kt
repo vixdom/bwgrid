@@ -1,4 +1,4 @@
-package com.example.bwgrid
+package com.moviemasala.wordsearch
 
 import io.flutter.embedding.android.FlutterActivity
 

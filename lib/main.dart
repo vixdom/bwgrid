@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'constants/app_themes.dart';
 import 'models/feedback_settings.dart';
 import 'services/feedback_controller.dart';
 import 'services/game_controller.dart';
+import 'services/achievements_service.dart';
 import 'screens/opening_screen.dart';
 import 'screens/game_screen.dart';
 
@@ -18,6 +20,7 @@ class BollyWordGridApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => FeedbackSettings()),
+        ChangeNotifierProvider(create: (_) => AchievementsService()),
         ChangeNotifierProxyProvider<FeedbackSettings, FeedbackController>(
           create: (ctx) =>
               FeedbackController(ctx.read<FeedbackSettings>())..init(),
@@ -27,54 +30,55 @@ class BollyWordGridApp extends StatelessWidget {
             return controller;
           },
         ),
-        ChangeNotifierProxyProvider2<
+        ChangeNotifierProxyProvider3<
           FeedbackSettings,
           FeedbackController,
+          AchievementsService,
           GameController
         >(
           create: (ctx) => GameController(
             settings: ctx.read<FeedbackSettings>(),
             feedback: ctx.read<FeedbackController>(),
+            achievements: ctx.read<AchievementsService>(),
           ),
-          update: (ctx, settings, feedback, gc) =>
-              GameController(settings: settings, feedback: feedback),
+          update: (ctx, settings, feedback, ach, gc) =>
+              GameController(settings: settings, feedback: feedback, achievements: ach),
         ),
       ],
-      child: MaterialApp(
-        title: 'Bolly Word Grid',
-        themeMode: ThemeMode.system,
-        theme: ThemeData(
-          useMaterial3: true,
-          colorScheme: const ColorScheme.light(
-            surface: Color(0xFFF5F5F7),
-            onSurface: Color(0xFF141414),
-            outline: Color(0xFFD7D7DB),
-            primary: Color(0xFF6A1B9A),
-            onPrimary: Colors.white,
-            secondary: Color(0xFFD81B60),
-          ),
-          scaffoldBackgroundColor: const Color(0xFFFFFFFF),
-          visualDensity: VisualDensity.adaptivePlatformDensity,
-        ),
-        darkTheme: ThemeData(
-          useMaterial3: true,
-          colorScheme: const ColorScheme.dark(
-            surface: Color(0xFF17171C),
-            onSurface: Color(0xFFFFFFFF),
-            outline: Color(0xFF2E2E36),
-            primary: Color(0xFFB39DDB),
-            onPrimary: Colors.black,
-            secondary: Color(0xFFD81B60),
-          ),
-          scaffoldBackgroundColor: const Color(0xFF0E0E12),
-          visualDensity: VisualDensity.adaptivePlatformDensity,
-        ),
-        initialRoute: '/',
-        routes: {
-          '/': (context) => const OpeningScreen(),
-          '/game': (context) => const GameScreen(),
-        },
-      ),
+      child: Builder(builder: (context) {
+        final settings = context.watch<FeedbackSettings>();
+        // Silent Game Center/Play Games sign-in on startup with a non-blocking snackbar on failure
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          final ach = context.read<AchievementsService>();
+          if (!ach.isSignedIn) {
+            await ach.signIn();
+            if (!ach.isSignedIn) {
+              final messenger = ScaffoldMessenger.maybeOf(context);
+              messenger?.showSnackBar(
+                const SnackBar(
+                  content: Text('Game Center unavailable—manage in Options.'),
+                  behavior: SnackBarBehavior.floating,
+                  duration: Duration(seconds: 3),
+                ),
+              );
+            }
+          }
+        });
+        final themeData = AppThemes.themeData(settings.theme);
+        // Keep a sensible dark variant for system overlays if needed (optional)
+        final dark = AppThemes.themeData(AppTheme.kashyap);
+        return MaterialApp(
+          title: 'Bolly Word Grid',
+          themeMode: ThemeMode.light,
+          theme: themeData,
+          darkTheme: dark,
+          initialRoute: '/',
+          routes: {
+            '/': (context) => const OpeningScreen(),
+            '/game': (context) => const GameScreen(),
+          },
+        );
+      }),
     );
   }
 }

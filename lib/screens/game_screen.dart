@@ -6,8 +6,8 @@ import 'package:provider/provider.dart';
 import '../services/game_controller.dart';
 import '../controllers/selection_controller.dart';
 import '../widgets/film_reel_painter.dart';
-import '../widgets/film_reel_pill.dart';
 import '../services/theme_dictionary.dart';
+import '../models/feedback_settings.dart';
 
 class GameScreen extends StatefulWidget {
   const GameScreen({super.key});
@@ -34,11 +34,33 @@ class _GameScreenState extends State<GameScreen> {
           }
           if (match) return true;
         }
+        // Check left
+        if (c - word.length + 1 >= 0) {
+          bool match = true;
+          for (int i = 0; i < word.length; i++) {
+            if (grid[r][c - i] != word[i]) {
+              match = false;
+              break;
+            }
+          }
+          if (match) return true;
+        }
         // Check down
         if (r + word.length <= n) {
           bool match = true;
           for (int i = 0; i < word.length; i++) {
             if (grid[r + i][c] != word[i]) {
+              match = false;
+              break;
+            }
+          }
+          if (match) return true;
+        }
+        // Check up
+        if (r - word.length + 1 >= 0) {
+          bool match = true;
+          for (int i = 0; i < word.length; i++) {
+            if (grid[r - i][c] != word[i]) {
               match = false;
               break;
             }
@@ -56,6 +78,17 @@ class _GameScreenState extends State<GameScreen> {
           }
           if (match) return true;
         }
+        // Check diag down-left (top-right to bottom-left)
+        if (r + word.length <= n && c - word.length + 1 >= 0) {
+          bool match = true;
+          for (int i = 0; i < word.length; i++) {
+            if (grid[r + i][c - i] != word[i]) {
+              match = false;
+              break;
+            }
+          }
+          if (match) return true;
+        }
       }
     }
     return false;
@@ -67,6 +100,7 @@ class _GameScreenState extends State<GameScreen> {
   List<_ConfettiDot> _confetti = const [];
   String _themeTitle = '';
   List<Clue> _clues = const [];
+  bool _startingNewPuzzle = false;
 
   @override
   void initState() {
@@ -115,6 +149,9 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   Future<void> _onPanEnd(DragEndDetails details) async {
+    // Capture selection state before it gets reset inside commitOrReset
+    final wasActive = _sel?.hasActive == true;
+    final prevLen = _sel?.activePath.length ?? 0;
     final found = _sel?.commitOrReset();
     final gc = context.read<GameController>();
     
@@ -123,11 +160,17 @@ class _GameScreenState extends State<GameScreen> {
       // The preview will be hidden automatically because _sel.hasActive will be false after commitOrReset
     });
     
-    if (found != null) {
+  if (found != null) {
       debugPrint('Word found: ${found.word}');
-      setState(() => score += found.word.length);
+      // Scoring: +10 per correct word
+      setState(() => score += 10);
       await gc.onWordFound();
       debugPrint('After onWordFound');
+      // Check hint unlock at 20 points and play a pop/clue sound once
+      if (!_hintUnlocked && score >= 20) {
+        _hintUnlocked = true;
+        unawaited(gc.feedback.playClue());
+      }
       
       // Accessibility announce
       // ignore: use_build_context_synchronously
@@ -141,8 +184,8 @@ class _GameScreenState extends State<GameScreen> {
         await gc.onPuzzleComplete();
         _spawnConfetti();
       }
-    } else if (_sel?.hasActive == true) {
-      // Only play invalid sound if there was an active selection
+    } else if (wasActive && prevLen >= 2) {
+      // Only play invalid sound if there was a meaningful selection before reset
       debugPrint('Playing invalid selection sound');
       await gc.onInvalid();
     }
@@ -164,6 +207,7 @@ class _GameScreenState extends State<GameScreen> {
 
   // Score
   int score = 0;
+  bool _hintUnlocked = false;
 
   Future<void> _loadPuzzle() async {
     // Load theme dictionary
@@ -177,7 +221,7 @@ class _GameScreenState extends State<GameScreen> {
         (dict.themes.isNotEmpty
             ? dict.themes.first
             : ThemeEntry(name: 'Bolly Words', names: const []));
-    final clues = theme.pickClues(10, maxLen: gridSize);
+  final clues = theme.pickClues(10, maxLen: gridSize);
     // Ensure exactly 10
     final chosen = (clues.length >= 10)
         ? clues.take(10).toList()
@@ -190,52 +234,80 @@ class _GameScreenState extends State<GameScreen> {
               .take(10)
               .toList();
 
-    // Try until all 10 names are placed, only 3 diagonals, only straight lines
-    _Puzzle puzzle;
-    List<Clue> verifiedClues = [];
-    int maxAttempts = 200;
-    int attempt = 0;
-    do {
-      puzzle = _generateConstrainedPuzzle(
+    // Show names immediately
+    setState(() {
+      _themeTitle = theme.name.toUpperCase();
+      _clues = List<Clue>.from(chosen);
+      grid = null;
+      _sel = null;
+    });
+
+    // Generate until all 10 names are placed per rules
+    const int maxAttempts = 1000;
+    _Puzzle? puzzle;
+    for (int attempt = 0; attempt < maxAttempts; attempt++) {
+      final candidate = _generateConstrainedPuzzle(
         gridSize,
         chosen.map((c) => c.answer).toList(),
       );
-      // Verify all words are present in the grid
-      verifiedClues = chosen.where((clue) => _isWordInGrid(puzzle.grid, clue.answer)).toList();
-      attempt++;
-    } while (verifiedClues.length < 10 && attempt < maxAttempts);
+      if (candidate == null) continue;
+      final ok = chosen.every((clue) => _isWordInGrid(candidate.grid, clue.answer));
+      if (ok) {
+        puzzle = candidate;
+        break;
+      }
+    }
+
+    if (puzzle == null) {
+      // As a last resort, keep showing names and a message; avoid showing a bogus grid
+      debugPrint('Failed to generate a valid puzzle after $maxAttempts attempts');
+      return;
+    }
+
+    final p = puzzle; // non-null
     setState(() {
-      grid = puzzle.grid;
-      _themeTitle = theme.name.toUpperCase();
+      grid = p.grid;
       _sel = SelectionController(
         grid: grid!,
         gridSize: gridSize,
-        targetWords: puzzle.words.toSet(),
+        targetWords: p.words.toSet(),
       );
-      _clues = [];
     });
-    // Reveal names one by one after verifying placement
-    for (int i = 0; i < verifiedClues.length; i++) {
-      await Future.delayed(const Duration(milliseconds: 400));
-      setState(() {
-        _clues = List<Clue>.from(verifiedClues.take(i + 1));
-      });
-    }
+  // Reset completion celebration state for the new puzzle
+  context.read<GameController>().resetCelebration();
+  }
+
+  Future<void> _playAgain() async {
+    if (_startingNewPuzzle) return;
+    setState(() {
+      _startingNewPuzzle = true;
+      score = 0;
+      _hintUnlocked = false;
+    });
+    await _loadPuzzle();
+    if (!mounted) return;
+    setState(() {
+      _startingNewPuzzle = false;
+    });
   }
 
   // Constrained puzzle generator contract:
   // - Inputs: size (N), words (10 strings A-Z)
-  // - Behavior: place all words on NxN grid using directions: right, down, diag down-right;
-  //             at most 4 diagonal placements; fill remaining with random A-Z.
+  // - Behavior: place all words on NxN grid using directions:
+  //   horizontal: right (0,1), left (0,-1)
+  //   vertical:   down (1,0), up (-1,0)
+  //   diagonal:   down-right (1,1), down-left (1,-1)
+  //   Note: no upward diagonals; diagonals are only downward.
+  //   Randomize direction mix slightly to avoid patterns; fill remaining with random A-Z.
   // - Output: Puzzle(grid, words)
-  _Puzzle _generateConstrainedPuzzle(int size, List<String> words) {
+  _Puzzle? _generateConstrainedPuzzle(int size, List<String> words) {
     final rnd = Random();
     // Sort longest first for higher placement success
     final sorted = List<String>.from(words.map((w) => w.toUpperCase()))
       ..sort((a, b) => b.length.compareTo(a.length));
 
     int attempts = 0;
-    while (attempts < 120) {
+    while (attempts < 200) {
       attempts++;
       final grid = List.generate(
         size,
@@ -243,22 +315,56 @@ class _GameScreenState extends State<GameScreen> {
         growable: false,
       );
       bool failed = false;
-
-      // Aim for a mix: ensure at least 3 horizontals, 3 verticals; diagonals capped at 3 total.
-      int placedH = 0, placedV = 0, placedD = 0;
+      // Enforce a mix: target counts for directions (slightly randomized per attempt)
+      int placedRight = 0;
+      int placedLeft = 0;
+      int placedDown = 0;
+      int placedUp = 0;
+      int placedDiagDR = 0;
+      int placedDiagDL = 0;
+      // Choose one of a few mixes summing to 10 with minimums: >=3 horizontal, >=3 vertical, >=2 diag total
+      const mixes = <List<int>>[
+        // [horizontalTotal, verticalTotal, diagTotal]
+        [4, 4, 2],
+        [4, 3, 3],
+        [3, 4, 3],
+        [5, 3, 2],
+        [3, 5, 2],
+        [3, 3, 4],
+      ];
+      final pick = mixes[rnd.nextInt(mixes.length)];
+      final targetHoriz = pick[0];
+      final targetVert = pick[1];
+      final targetDiagTotal = pick[2];
 
       for (final word in sorted) {
-        // Build allowed directions respecting caps, while keeping some randomness
+        // Prioritize directions that are under target to meet the mix
         final choices = <_Dir>[];
-        // Only allow right, down, diag down-right
-        if (placedH < 3) choices.add(const _Dir(0, 1));
-        if (placedV < 3) choices.add(const _Dir(1, 0));
-        if (placedD < 3) choices.add(const _Dir(1, 1));
-
-        // If minima satisfied, allow all directions but keep diagonal cap 3
+        final placedHoriz = placedRight + placedLeft;
+        final placedVert = placedDown + placedUp;
+        if (placedHoriz < targetHoriz) {
+          if (placedRight <= placedLeft) choices.add(const _Dir(0, 1));
+          if (placedLeft <= placedRight) choices.add(const _Dir(0, -1));
+        }
+        if (placedVert < targetVert) {
+          if (placedDown <= placedUp) choices.add(const _Dir(1, 0));
+          if (placedUp <= placedDown) choices.add(const _Dir(-1, 0));
+        }
+        final placedDiagTotal = placedDiagDR + placedDiagDL;
+        if (placedDiagTotal < targetDiagTotal) {
+          // Prefer the diagonal that is currently underrepresented
+          if (placedDiagDR <= placedDiagDL) choices.add(const _Dir(1, 1));
+          if (placedDiagDL <= placedDiagDR) choices.add(const _Dir(1, -1));
+        }
         if (choices.isEmpty) {
-          choices.addAll(const [_Dir(0, 1), _Dir(1, 0)]);
-          if (placedD < 3) choices.add(const _Dir(1, 1));
+          choices.addAll(const [
+            _Dir(0, 1), // right
+            _Dir(0, -1), // left
+            _Dir(1, 0), // down
+            _Dir(-1, 0), // up
+            _Dir(1, 1), // diag down-right
+            _Dir(1, -1), // diag down-left
+          ]);
         }
         choices.shuffle(rnd);
 
@@ -268,22 +374,38 @@ class _GameScreenState extends State<GameScreen> {
         while (!placed && tries < 220) {
           tries++;
           final dir = choices[rnd.nextInt(choices.length)];
-          // Only allow straight lines and diag down-right
-          if (!((dir.dr == 0 && dir.dc == 1) || (dir.dr == 1 && dir.dc == 0) || (dir.dr == 1 && dir.dc == 1))) continue;
-          final maxRow = size - (dir.dr == 1 ? word.length : 1);
-          final maxCol = size - (dir.dc == 1 ? word.length : 1);
-          if (maxRow < 0 || maxCol < 0) continue;
-          final row = rnd.nextInt(maxRow + 1);
-          final col = rnd.nextInt(maxCol + 1);
+      // Only allow right/left, down/up, diag down-right, diag down-left (no upward diagonals)
+          final allowed = (dir.dr == 0 && dir.dc == 1) ||
+        (dir.dr == 0 && dir.dc == -1) ||
+              (dir.dr == 1 && dir.dc == 0) ||
+        (dir.dr == -1 && dir.dc == 0) ||
+              (dir.dr == 1 && dir.dc == 1) ||
+              (dir.dr == 1 && dir.dc == -1);
+          if (!allowed) continue;
+          // Compute valid start ranges based on direction
+          final rowMin = dir.dr == -1
+              ? (word.length - 1)
+              : 0;
+          final rowMax = dir.dr == 1
+              ? size - word.length
+              : size - 1;
+          final colMin = dir.dc == -1
+              ? (word.length - 1)
+              : 0;
+          final colMax = dir.dc == 1
+              ? size - word.length
+              : size - 1;
+          if (rowMax < rowMin || colMax < colMin) continue;
+          final row = rowMin + rnd.nextInt(rowMax - rowMin + 1);
+          final col = colMin + rnd.nextInt(colMax - colMin + 1);
           if (_canPlace(grid, row, col, dir, word)) {
             _place(grid, row, col, dir, word);
-            if (dir.dr == 1 && dir.dc == 1) {
-              placedD++;
-            } else if (dir.dr == 0 && dir.dc == 1) {
-              placedH++;
-            } else if (dir.dr == 1 && dir.dc == 0) {
-              placedV++;
-            }
+            if (dir.dr == 0 && dir.dc == 1) placedRight++;
+            else if (dir.dr == 0 && dir.dc == -1) placedLeft++;
+            else if (dir.dr == 1 && dir.dc == 0) placedDown++;
+            else if (dir.dr == -1 && dir.dc == 0) placedUp++;
+            else if (dir.dr == 1 && dir.dc == 1) placedDiagDR++;
+            else if (dir.dr == 1 && dir.dc == -1) placedDiagDL++;
             placed = true;
           }
         }
@@ -294,6 +416,13 @@ class _GameScreenState extends State<GameScreen> {
       }
 
       if (!failed) {
+  // Enforce a solid mix: at least 3 horizontal, 3 vertical, 2 diagonals total with both diag types present
+  final placedDiagTotal2 = placedDiagDR + placedDiagDL;
+  final placedHoriz2 = placedRight + placedLeft;
+  final placedVert2 = placedDown + placedUp;
+  if (!(placedHoriz2 >= 3 && placedVert2 >= 3 && placedDiagTotal2 >= 2 && placedDiagDR >= 1 && placedDiagDL >= 1)) {
+          continue;
+        }
         // Fill empties with random letters
         for (int r = 0; r < size; r++) {
           for (int c = 0; c < size; c++) {
@@ -305,57 +434,8 @@ class _GameScreenState extends State<GameScreen> {
         return _Puzzle(grid: grid, words: sorted);
       }
     }
-  // Helper to verify word is present in grid in allowed directions
-  bool _isWordInGrid(List<List<String>> grid, String word) {
-    final n = grid.length;
-    word = word.toUpperCase();
-    for (int r = 0; r < n; r++) {
-      for (int c = 0; c < n; c++) {
-        // Check right
-        if (c + word.length <= n) {
-          bool match = true;
-          for (int i = 0; i < word.length; i++) {
-            if (grid[r][c + i] != word[i]) {
-              match = false;
-              break;
-            }
-          }
-          if (match) return true;
-        }
-        // Check down
-        if (r + word.length <= n) {
-          bool match = true;
-          for (int i = 0; i < word.length; i++) {
-            if (grid[r + i][c] != word[i]) {
-              match = false;
-              break;
-            }
-          }
-          if (match) return true;
-        }
-        // Check diag down-right
-        if (r + word.length <= n && c + word.length <= n) {
-          bool match = true;
-          for (int i = 0; i < word.length; i++) {
-            if (grid[r + i][c + i] != word[i]) {
-              match = false;
-              break;
-            }
-          }
-          if (match) return true;
-        }
-      }
-    }
-    return false;
-  }
-
-    // Last resort fallback: random fill, still return the intended words
-    final randomGrid = List.generate(
-      size,
-      (_) =>
-          List.generate(size, (_) => String.fromCharCode(rnd.nextInt(26) + 65)),
-    );
-    return _Puzzle(grid: randomGrid, words: sorted);
+    // Unable to place all words within the attempt budget
+    return null;
   }
 
   bool _canPlace(
@@ -459,11 +539,88 @@ class _GameScreenState extends State<GameScreen> {
                   '$score',
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
+                const SizedBox(width: 8),
+                Builder(
+                  builder: (context) {
+                    final settings = context.watch<FeedbackSettings>();
+                    final canUseHints = settings.hintsEnabled && score >= 20 && _sel != null;
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          decoration: canUseHints
+                              ? const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Color(0xFFB388FF), // purple glow
+                                      blurRadius: 16,
+                                      spreadRadius: 1,
+                                    ),
+                                    BoxShadow(
+                                      color: Color(0xFF8E24AA),
+                                      blurRadius: 24,
+                                      spreadRadius: 2,
+                                    ),
+                                  ],
+                                )
+                              : null,
+                          child: IconButton(
+                            tooltip: canUseHints
+                                ? 'Hint (-15 points)'
+                                : 'Hints unlock at 20 points',
+                            onPressed: !canUseHints
+                                ? null
+                                : () {
+                                    if (_sel == null) return;
+                                    if (score < 15) return; // need enough points
+                                    final sc = _sel!;
+                                    final remaining = sc.remainingWords;
+                                    if (remaining.isEmpty) return;
+                                    final list = remaining.toList()..shuffle();
+                                    final word = list.first;
+                                    final start = sc.findWordStart(word);
+                                    if (start != null) {
+                                      setState(() => score -= 15);
+                                      sc.showHintAt(start, durationMs: 1000);
+                                    }
+                                  },
+                            icon: const Icon(Icons.help_outline),
+                            iconSize: 22,
+                            padding: const EdgeInsets.all(4),
+                            constraints: const BoxConstraints(
+                              minWidth: 40,
+                              minHeight: 40,
+                            ),
+                            color: canUseHints ? Colors.white : Colors.white70,
+                          ),
+                        ),
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 200),
+                          child: canUseHints
+                              ? const Padding(
+                                  padding: EdgeInsets.only(top: 2),
+                                  child: Text(
+                                    'Hint 15 points',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                )
+                              : const SizedBox.shrink(),
+                        ),
+                      ],
+                    );
+                  },
+                ),
               ],
             ),
           ),
         ],
-        toolbarHeight: 56,
+  toolbarHeight: 68,
       ),
       body: PopScope(
         canPop: false,
@@ -843,6 +1000,42 @@ class _GameScreenState extends State<GameScreen> {
                               _showConfetti
                                   ? _ConfettiLayer(dots: _confetti)
                                   : const SizedBox.shrink(),
+                              // Win-state overlay with Play again button
+                              if (_sel?.isComplete == true)
+                                Positioned.fill(
+                                  child: Container(
+                                    color: Colors.black.withOpacity(0.35),
+                                    alignment: Alignment.center,
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Text(
+                                          'All names found! 🎉',
+                                          style: TextStyle(
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.w800,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        FilledButton.icon(
+                                          onPressed: _startingNewPuzzle ? null : _playAgain,
+                                          icon: const Icon(Icons.refresh),
+                                          label: Text(
+                                            _startingNewPuzzle ? 'Loading…' : 'Play again',
+                                          ),
+                                          style: FilledButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                                            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                                            backgroundColor: Theme.of(context).colorScheme.primary,
+                                            foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
                             ],
                           );
                         },

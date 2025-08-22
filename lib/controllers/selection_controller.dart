@@ -47,6 +47,11 @@ class SelectionController extends ChangeNotifier {
   final List<FoundPath> found = [];
 
   bool get hasActive => activePath.isNotEmpty;
+  Set<String> get targetWords => _targetWords;
+  Set<String> get remainingWords {
+    final foundSet = found.map((f) => f.word).toSet();
+    return _targetWords.difference(foundSet);
+  }
 
   void resetForNewGrid({
     required List<List<String>> grid,
@@ -75,6 +80,78 @@ class SelectionController extends ChangeNotifier {
     activePath = [cell];
     debugPrint('beginAt: active len=${activePath.length} color=$activeColor first=${activePath.isNotEmpty ? activePath.first : null}');
     notifyListeners();
+  }
+
+  /// Find the starting cell (row,col) of a word in the grid using allowed directions
+  /// Returns null if not found.
+  Offset? findWordStart(String word) {
+    final n = _gridSize;
+    final w = word.toUpperCase();
+    for (int r = 0; r < n; r++) {
+      for (int c = 0; c < n; c++) {
+        // Right
+        if (c + w.length <= n) {
+          bool ok = true;
+          for (int i = 0; i < w.length; i++) {
+            if (_grid[r][c + i] != w[i]) { ok = false; break; }
+          }
+          if (ok) return Offset(r.toDouble(), c.toDouble());
+        }
+        // Left
+        if (c - w.length + 1 >= 0) {
+          bool ok = true;
+          for (int i = 0; i < w.length; i++) {
+            if (_grid[r][c - i] != w[i]) { ok = false; break; }
+          }
+          if (ok) return Offset(r.toDouble(), c.toDouble());
+        }
+        // Down
+        if (r + w.length <= n) {
+          bool ok = true;
+          for (int i = 0; i < w.length; i++) {
+            if (_grid[r + i][c] != w[i]) { ok = false; break; }
+          }
+          if (ok) return Offset(r.toDouble(), c.toDouble());
+        }
+        // Up
+        if (r - w.length + 1 >= 0) {
+          bool ok = true;
+          for (int i = 0; i < w.length; i++) {
+            if (_grid[r - i][c] != w[i]) { ok = false; break; }
+          }
+          if (ok) return Offset(r.toDouble(), c.toDouble());
+        }
+        // Diag down-right
+        if (r + w.length <= n && c + w.length <= n) {
+          bool ok = true;
+          for (int i = 0; i < w.length; i++) {
+            if (_grid[r + i][c + i] != w[i]) { ok = false; break; }
+          }
+          if (ok) return Offset(r.toDouble(), c.toDouble());
+        }
+        // Diag down-left (top-right to bottom-left)
+        if (r + w.length <= n && c - w.length + 1 >= 0) {
+          bool ok = true;
+          for (int i = 0; i < w.length; i++) {
+            if (_grid[r + i][c - i] != w[i]) { ok = false; break; }
+          }
+          if (ok) return Offset(r.toDouble(), c.toDouble());
+        }
+      }
+    }
+    return null;
+  }
+
+  /// Temporarily highlight a single cell as a hint
+  void showHintAt(Offset cell, {int durationMs = 900}) {
+    activeColor = Colors.amberAccent;
+    activePath = [cell];
+    notifyListeners();
+    Timer(Duration(milliseconds: durationMs), () {
+      activePath = const [];
+      activeColor = null;
+      notifyListeners();
+    });
   }
 
   // Extend; returns true if path changed
@@ -298,10 +375,5 @@ extension SelectionHelpers on SelectionController {
 
   bool get isComplete => found.length >= 10; // 10 words per puzzle
 
-  bool _cellInAnyFound(Offset cell) {
-    for (final fp in found) {
-      if (fp.points.contains(cell)) return true;
-    }
-    return false;
-  }
+  // ...existing code...
 }

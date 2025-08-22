@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -5,10 +7,21 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+val keystorePropsFile = rootProject.file("key.properties")
+val keystoreProps = Properties().apply {
+    if (keystorePropsFile.exists()) {
+        load(keystorePropsFile.inputStream())
+    } else {
+        logger.warn("key.properties not found at ${keystorePropsFile.absolutePath}. Release signing will not be configured.")
+    }
+}
+
 android {
-    namespace = "com.example.bwgrid"
+    namespace = "com.moviemasala.wordsearch"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
+
+    // Icons are now stored directly under src/main/res/mipmap-*/ic_launcher.png
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -20,21 +33,42 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.bwgrid"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
+        applicationId = "com.moviemasala.wordsearch"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
+
+        // 🚨 MANUALLY bump these for every Play Store upload
+        versionCode = 4
+        versionName = "1.0.6"
+    }
+
+    signingConfigs {
+        create("release") {
+            val store = keystoreProps["storeFile"] as String?
+            val storePass = keystoreProps["storePassword"] as String?
+            val alias = keystoreProps["keyAlias"] as String?
+            val keyPass = keystoreProps["keyPassword"] as String?
+
+            if (store.isNullOrBlank() || storePass.isNullOrBlank() || alias.isNullOrBlank() || keyPass.isNullOrBlank()) {
+                logger.warn("Release signing config not fully specified in key.properties; using unsigned release.")
+            } else {
+                storeFile = file(store)
+                storePassword = storePass
+                keyAlias = alias
+                keyPassword = keyPass
+            }
+        }
     }
 
     buildTypes {
-        release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+        getByName("release") {
+            signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = false
+            isShrinkResources = false
+            isDebuggable = false
+        }
+        getByName("debug") {
+            isDebuggable = true
         }
     }
 }

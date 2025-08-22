@@ -23,37 +23,46 @@ class FilmReelPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-  final stroke = cellSize * 0.85; // ~85% of tile size to look like the pill
+  // Use a near-full-cell stroke so square caps reach the cell edges
+  final stroke = cellSize * 0.98;
 
     // 1) Found paths first (so active selection sits on top)
     for (final fp in found) {
       if (fp.points.isEmpty) continue;
 
-      final gridPath = _polylineFromGrid(fp.points);
-      final revealed = _extractPathByProgress(gridPath, fp.progress.value.clamp(0.0, 1.1));
+      // Special case: single-letter word -> draw a full tile pill
+      if (fp.points.length == 1) {
+        _drawSingleCellPill(canvas, fp.points.first, stroke, fp.color);
+      } else {
+        final gridPath = _polylineFromGrid(fp.points);
+        final revealed = _extractPathByProgress(gridPath, fp.progress.value.clamp(0.0, 1.1));
 
-      _drawFilmReelStrip(
-        canvas: canvas,
-        path: revealed,
-        stroke: stroke,
-        baseColor: fp.color,
-        surfaceColor: surfaceColor,
-        isActive: false,
-      );
+        _drawFilmReelStrip(
+          canvas: canvas,
+          path: revealed,
+          stroke: stroke,
+          baseColor: fp.color,
+          surfaceColor: surfaceColor,
+          isActive: false,
+        );
+      }
     }
 
     // 2) Active (in‑progress) path
     if (activeColor != null && activePath.isNotEmpty) {
-      final gridPath = _polylineFromGrid(activePath);
-
-      _drawFilmReelStrip(
-        canvas: canvas,
-        path: gridPath,
-        stroke: stroke,
-        baseColor: activeColor!,
-        surfaceColor: surfaceColor,
-        isActive: true,
-      );
+      if (activePath.length == 1) {
+        _drawSingleCellPill(canvas, activePath.first, stroke, activeColor!);
+      } else {
+        final gridPath = _polylineFromGrid(activePath);
+        _drawFilmReelStrip(
+          canvas: canvas,
+          path: gridPath,
+          stroke: stroke,
+          baseColor: activeColor!,
+          surfaceColor: surfaceColor,
+          isActive: true,
+        );
+      }
     }
   }
 
@@ -93,8 +102,8 @@ class FilmReelPainter extends CustomPainter {
     // Soft shadow (ensure parent Stack has clipBehavior: Clip.none)
     final shadow = Paint()
       ..style = PaintingStyle.stroke
-      // Film strip should end square
-      ..strokeCap = StrokeCap.butt
+      // Square caps extend to cover the first/last letter fully
+      ..strokeCap = StrokeCap.square
       ..strokeJoin = StrokeJoin.miter
       ..strokeWidth = stroke
       ..color = Colors.black.withValues(alpha: 0.25)
@@ -107,8 +116,8 @@ class FilmReelPainter extends CustomPainter {
     // Main strip paint - solid color, transparent
     final mainPaint = Paint()
       ..style = PaintingStyle.stroke
-      // Square ends to look like a cut film strip
-      ..strokeCap = StrokeCap.butt
+      // Square ends to look like a cut film strip and cover edges
+      ..strokeCap = StrokeCap.square
       ..strokeJoin = StrokeJoin.miter
       ..strokeWidth = stroke
       ..color = baseColor.withValues(alpha: isActive ? 0.85 : 0.80);
@@ -118,6 +127,15 @@ class FilmReelPainter extends CustomPainter {
 
     // Perforations (surface-colored dots to simulate cut-through)
     _drawPerforations(canvas, path, stroke, surfaceColor);
+  }
+
+  // Draw a pill covering the entire tile for single-cell paths
+  void _drawSingleCellPill(Canvas canvas, Offset gridRC, double stroke, Color baseColor) {
+    final center = _cellCenter(gridRC);
+    final rect = Rect.fromCenter(center: center, width: cellSize * 0.98, height: cellSize * 0.98);
+    final rrect = RRect.fromRectAndRadius(rect, Radius.circular(cellSize * 0.24));
+    final paint = Paint()..color = baseColor.withValues(alpha: 0.82);
+    canvas.drawRRect(rrect, paint);
   }
 
   // --- helpers ---
