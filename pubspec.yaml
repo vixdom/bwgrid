@@ -30,18 +30,16 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
-  # The following adds the Cupertino Icons font to your application.
-  # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
-  provider:
-  just_audio:
-  audio_session:
-  vibration:
-  games_services:
-  simple_icons:
-  shared_preferences:
-  flutter_svg:
+  flutter_svg: ^2.0.10+1
+  google_fonts: ^6.2.1
+  provider: any
+  just_audio: any
+  audio_session: any
+  vibration: any
+  games_services: any
+  simple_icons: any
+  shared_preferences: any
 
 dev_dependencies:
   flutter_test:
@@ -68,6 +66,7 @@ flutter:
   # Audio assets
   assets:
     - assets/audio/
+    - assets/images/
     # Text assets
     - assets/key and themes.txt
     - assets/images/filmreel.svg
