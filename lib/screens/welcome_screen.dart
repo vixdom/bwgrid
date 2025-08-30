@@ -1,322 +1,226 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// Opening screen for BollyWord Grid.
-/// Recreates the cinema background, responsive 9×9 poster grid,
-/// vertical “BOLLYWORD”, horizontal “GRID” as 4 gold tiles,
-/// and a golden film reel that visually “embraces” the vertical word.
 // Quick-tweak config
-const bool kShowReel = true;
-const double kReelOpacity = 0.8;
-const double kReelScale = 0.38; // relative to gridH
-const bool kShowAmbientGlows = false; // keep page-level only
-const bool kShowTaglineChip = false; // historically used; keep flag, render plain now
+const bool kShowReel = false; // disabled for clean design
+const double kGridLineThickness = 2.5; // Increased grid line thickness
 
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    
     return Scaffold(
-      // If you already use your own AppBar elsewhere, you can remove this.
-  appBar: AppBar(
-  backgroundColor: Colors.black.withOpacity(0.25),
-        elevation: 0,
-        title: const Text('BollyWord Grid'),
-        actions: [
-          IconButton(
-            tooltip: 'Awards',
-            onPressed: () {},
-            icon: const Icon(Icons.emoji_events_outlined),
-          ),
-        ],
-      ),
-  body: Stack(
+      body: Stack(
         children: [
-          // Background photo
+          // Background photo - full screen
           Positioned.fill(
             child: Image.asset(
               'assets/images/screen_cropped.png',
               fit: BoxFit.cover,
+              width: screenSize.width,
+              height: screenSize.height,
             ),
           ),
-          // Contrast overlay
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Colors.black54, Colors.black26, Colors.black87],
-                ),
-              ),
-            ),
-          ),
-
+          
           // Content
-          Positioned.fill(
-            child: SafeArea(
-              child: Column(
-                children: [
-                  const SizedBox(height: 12),
-                  // Poster (grid + letters + reel)
-                  const _PosterCard(),
-                  const SizedBox(height: 16),
-
-      // Tagline plain (no chip)
-      Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      SvgPicture.asset('assets/images/sparkle.svg',
-                          width: 18, height: 18, colorFilter: const ColorFilter.mode(Colors.amber, BlendMode.srcIn)),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Lights, Camera, Action!',
-                        style: GoogleFonts.poppins(
-  color: Colors.white.withValues(alpha: 0.92),
-                          fontSize: 18,
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      SvgPicture.asset('assets/images/sparkle.svg',
-                          width: 18, height: 18, colorFilter: const ColorFilter.mode(Colors.amber, BlendMode.srcIn)),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Buttons
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Column(
-                      children: [
-                        _PrimaryButton(
-                          label: 'Play',
-                          icon: Icons.play_arrow_rounded,
-                          onTap: () {
-                            Navigator.of(context).pushNamed('/game');
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        _SecondaryButton(
-                          label: 'Options',
-                          icon: Icons.settings_rounded,
-                          onTap: () {
-                            // TODO: navigate to options
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        _SecondaryButton(
-                          label: 'Awards',
-                          icon: Icons.emoji_events_outlined,
-                          onTap: () {
-                            // TODO: navigate to awards
-                          },
-                        ),
+          Column(
+            children: [
+              // Grid area (top 60% of screen)
+              SizedBox(
+                height: screenSize.height * 0.6,
+                child: const _PosterCard(),
+              ),
+              
+              // Buttons area (bottom 40% of screen)
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        Colors.black.withValues(alpha: 0.8),
                       ],
                     ),
                   ),
-
-                  const Spacer(),
-                  // Footer
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.35),
-                        border: Border.all(color: Colors.white24),
-                        borderRadius: BorderRadius.circular(999),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _PrimaryButton(
+                        label: 'Play',
+                        icon: Icons.play_arrow,
+                        onTap: () {
+                          Navigator.of(context).pushNamed('/game');
+                        },
                       ),
-                      child: Text(
-                        'v1.0 • Copyright Appzaro',
+                      const SizedBox(height: 16),
+                      _SecondaryButton(
+                        label: 'Options',
+                        icon: Icons.settings,
+                        onTap: () {
+                          Navigator.of(context).pushNamed('/options');
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      const _AwardsButton(),
+                      const SizedBox(height: 24),
+                      
+                      // Tagline
+                      Text(
+                        '✨ Lights, Letters, Action! ✨',
+                        style: GoogleFonts.poppins(
+                          color: Colors.white.withValues(alpha: 0.92),
+                          fontSize: 17,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                      const Spacer(),
+                      
+                      // Copyright footer
+                      Text(
+                        'v1.0 • Copyright 4spire',
                         style: GoogleFonts.poppins(
                           color: Colors.white70,
                           fontSize: 12,
                         ),
                       ),
-                    ),
-                  )
-                ],
+                    ],
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
-
-          // Ambient glows (optional, subtle, outside poster)
-          if (kShowAmbientGlows) ...[
-            Positioned(
-              top: MediaQuery.of(context).size.height * .22,
-              left: 16,
-              child: _Glow(Colors.blue.withValues(alpha: 0.06), 110),
-            ),
-            Positioned(
-              top: MediaQuery.of(context).size.height * .30,
-              right: 12,
-              child: _Glow(Colors.purple.withValues(alpha: 0.06), 90),
-            ),
-            Positioned(
-              bottom: MediaQuery.of(context).size.height * .30,
-              left: 28,
-              child: _Glow(Colors.orange.withValues(alpha: 0.06), 70),
-            ),
-          ],
         ],
       ),
     );
   }
 }
 
-/// Poster card (responsive)
+/// Poster card with cinema screen aspect ratio, anchored to background
 class _PosterCard extends StatelessWidget {
   const _PosterCard();
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (_, constraints) {
-        // Poster max width for phones, stays centered
-        final maxW = math.min(constraints.maxWidth, 520.0);
-        return Center(
-          child: Container(
-            width: maxW,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF0B0B0D).withValues(alpha: 0.70),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: const [
-                BoxShadow(color: Colors.black54, blurRadius: 30, offset: Offset(0, 18)),
-              ],
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: _PosterInner(width: maxW - 24), // minus padding
-          ),
-        );
-      },
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24),
+      decoration: BoxDecoration(
+        color: Colors.transparent, // Transparent background
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: const [
+          BoxShadow(color: Colors.black54, blurRadius: 30, offset: Offset(0, 18)),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: AspectRatio(
+        // Match the cinema screen image ratio for consistent anchoring
+        aspectRatio: 16 / 9,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return _PosterContent(
+              width: constraints.maxWidth,
+              height: constraints.maxHeight,
+            );
+          },
+        ),
+      ),
     );
   }
 }
 
-class _PosterInner extends StatelessWidget {
-  const _PosterInner({required this.width});
+class _PosterContent extends StatelessWidget {
+  const _PosterContent({required this.width, required this.height});
   final double width;
+  final double height;
 
   @override
   Widget build(BuildContext context) {
     // Grid config
     const rows = 9;
     const cols = 9;
-    // Desired visual padding (in cells)
-    const innerPadCells = 1.0;
+    const double gridPadding = 6.0; // Small padding to avoid clipping
 
-    // Compute cell size to fit inside width with padding L/R
-    final cell = _snapToDevicePixels(width / (cols + innerPadCells * 2));
-    final gridW = cell * cols;
-    final gridH = cell * rows;
-    final pad = _snapToDevicePixels(cell * innerPadCells);
+    // Fit full 9x9 grid inside the poster with 15% size reduction
+    final maxCellByWidth = (width - (gridPadding * 2)) / cols;
+    final maxCellByHeight = (height - (gridPadding * 2)) / rows;
+  final cellSize = math.min(maxCellByWidth, maxCellByHeight) * 0.8; // 20% smaller grid
+    final gridWidth = cellSize * cols;
+    final gridHeight = cellSize * rows;
 
-    // Words
+    // Center horizontally, add 15% offset from top plus 80 pixels total
+    final gridLeft = (width - gridWidth) / 2;
+  final gridTop = gridPadding + 150.0 + 15.0 + 20.0 + 20.0; // moved down by 211px total
+
+    // Words positioning
     const verticalWord = ['B', 'O', 'L', 'L', 'Y', 'W', 'O', 'R', 'D'];
     const horizontalWord = ['G', 'R', 'I', 'D'];
 
-  final centerCol = cols ~/ 2; // 4
-  final horizRow = rows - 1; // bottom row -> 8
-  final horizStartCol = centerCol - (horizontalWord.length - 1); // 1
+    final centerCol = cols ~/ 2; // column 4 (0-indexed)
+    final bottomRow = rows - 1; // row 8 (0-indexed)
+    final horizStartCol = centerCol - (horizontalWord.length - 1); // starts at column 1
 
-    return SizedBox(
-      width: gridW + pad * 2,
-      height: gridH + pad * 2,
-      child: Stack(
-        children: [
-          // Grid (thin) via CustomPainter
-          Positioned.fill(
-            child: CustomPaint(
-              painter: _GridPainter(
-                rows: rows,
-                cols: cols,
-                cell: cell,
-                color: const Color(0xFF7A6BFF).withValues(alpha: 0.15),
-              ),
+    return Stack(
+      children: [
+        // Grid lines
+        Positioned(
+          left: gridLeft,
+          top: gridTop,
+          width: gridWidth,
+          height: gridHeight,
+          child: CustomPaint(
+            painter: _GridPainter(
+              rows: rows,
+              cols: cols,
+              cellSize: cellSize,
+              baseColor: const Color(0xFF7A6BFF).withValues(alpha: 0.18),
+              emphasisColor: const Color(0xFF7A6BFF).withValues(alpha: 0.35),
+              centerCol: centerCol,
+              bottomRow: bottomRow,
             ),
           ),
-          // Film reel overlay (between grid and letters, optional)
-          if (kShowReel)
-            Positioned(
-              left: pad + centerCol * cell - (gridH * kReelScale) * .55,
-              top: pad + gridH * .22,
-              child: IgnorePointer(
-                ignoring: true,
-                child: Opacity(
-                  opacity: kReelOpacity,
-                  child: SvgPicture.asset(
-                    'assets/images/filmreel.svg',
-                    width: gridH * kReelScale,
-                    height: gridH * kReelScale,
-          // Use currentColor via SvgTheme; fallback to amber
-          colorFilter: null,
-          theme: const SvgTheme(currentColor: Colors.amber),
-                  ),
+        ),
+
+        // Vertical BOLLYWORD letters
+        for (var r = 0; r < verticalWord.length; r++)
+          Positioned(
+            left: gridLeft + centerCol * cellSize,
+            top: gridTop + r * cellSize,
+            width: cellSize,
+            height: cellSize,
+            child: Center(
+              child: Text(
+                verticalWord[r],
+                style: GoogleFonts.bungee(
+                  color: Colors.white,
+                  fontSize: (cellSize * 0.5).clamp(10.0, 32.0),
+                  fontWeight: FontWeight.w900,
+                  shadows: const [
+                    Shadow(color: Colors.black87, blurRadius: 4, offset: Offset(1, 1)),
+                  ],
                 ),
               ),
             ),
-          // Bold axes on top: center column + bottom row
-          // Center column
-          Positioned(
-            left: pad + centerCol * cell - .5,
-            top: pad,
-            width: 1,
-            height: gridH,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: const Color(0xFF7A6BFF).withValues(alpha: 0.35),
-              ),
-            ),
-          ),
-          // Bottom row
-          Positioned(
-            left: pad,
-            top: pad + (rows - 1) * cell - .5,
-            width: gridW,
-            height: 1,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: const Color(0xFF7A6BFF).withValues(alpha: 0.35),
-              ),
-            ),
           ),
 
-          // Letters & gold tiles
-          // Vertical BOLLYWORD
-          for (var r = 0; r < verticalWord.length; r++)
-            Positioned(
-              left: pad + centerCol * cell,
-              top: pad + r * cell,
-              width: cell,
-              height: cell,
-              child: Center(
-                child: Text(
-                  verticalWord[r],
-                  style: GoogleFonts.bungee(
-                    color: Colors.white,
-                    fontSize: cell * .56,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
+        // Horizontal GRID as gold tiles
+        for (var i = 0; i < horizontalWord.length; i++)
+          Positioned(
+            left: gridLeft + (horizStartCol + i) * cellSize,
+            top: gridTop + bottomRow * cellSize,
+            width: cellSize,
+            height: cellSize,
+            child: _GoldTile(
+              letter: horizontalWord[i],
+              fontSize: (cellSize * 0.45).clamp(10.0, 28.0),
             ),
-
-          // Horizontal GRID as 4 gold tiles, ending at center column (D at cross)
-          for (var i = 0; i < horizontalWord.length; i++)
-            Positioned(
-              left: pad + (horizStartCol + i) * cell,
-              top: pad + horizRow * cell,
-              width: cell,
-              height: cell,
-              child: _GoldTile(letter: horizontalWord[i], fontSize: cell * .48),
-            ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 }
@@ -328,7 +232,8 @@ class _GoldTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
+    return Container(
+      margin: const EdgeInsets.all(2.0), // Inset to avoid clipping
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           begin: Alignment.topCenter,
@@ -342,9 +247,8 @@ class _GoldTile extends StatelessWidget {
         ),
         boxShadow: const [
           BoxShadow(color: Colors.black38, blurRadius: 8, offset: Offset(0, 3)),
-          BoxShadow(color: Colors.black26, blurRadius: 3, offset: Offset(0, -1)),
         ],
-        borderRadius: BorderRadius.all(Radius.circular(10)),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Center(
         child: Text(
@@ -361,35 +265,44 @@ class _GoldTile extends StatelessWidget {
 }
 
 class _GridPainter extends CustomPainter {
-  _GridPainter({
+  const _GridPainter({
     required this.rows,
     required this.cols,
-    required this.cell,
-    required this.color,
+    required this.cellSize,
+    required this.baseColor,
+    required this.emphasisColor,
+    required this.centerCol,
+    required this.bottomRow,
   });
 
   final int rows;
   final int cols;
-  final double cell;
-  final Color color;
+  final double cellSize;
+  final Color baseColor;
+  final Color emphasisColor;
+  final int centerCol;
+  final int bottomRow;
 
   @override
   void paint(Canvas canvas, Size size) {
-  // In this painter, we cover the entire area; start lines at 0.
     final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1;
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5; // Thicker lines
 
-    // Vertical lines
-    for (var c = 0; c <= cols; c++) {
-      final x = _snapToDevicePixels(c * cell);
-      canvas.drawLine(Offset(x, 0), Offset(x, rows * cell), paint);
+    // Draw vertical lines with increased thickness
+    paint.strokeWidth = kGridLineThickness;
+    for (int c = 0; c <= cols; c++) {
+      paint.color = (c == centerCol || c == centerCol + 1) ? emphasisColor : baseColor;
+      final x = _snapToDevicePixels(c * cellSize);
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
     }
 
-    // Horizontal lines
-    for (var r = 0; r <= rows; r++) {
-      final y = _snapToDevicePixels(r * cell);
-      canvas.drawLine(Offset(0, y), Offset(cols * cell, y), paint);
+    // Draw horizontal lines with increased thickness
+    paint.strokeWidth = kGridLineThickness;
+    for (int r = 0; r <= rows; r++) {
+      paint.color = (r == bottomRow || r == bottomRow + 1) ? emphasisColor : baseColor;
+      final y = _snapToDevicePixels(r * cellSize);
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
     }
   }
 
@@ -397,16 +310,16 @@ class _GridPainter extends CustomPainter {
   bool shouldRepaint(covariant _GridPainter oldDelegate) {
     return oldDelegate.rows != rows ||
         oldDelegate.cols != cols ||
-        oldDelegate.cell != cell ||
-        oldDelegate.color != color;
+        oldDelegate.cellSize != cellSize ||
+        oldDelegate.baseColor != baseColor ||
+        oldDelegate.emphasisColor != emphasisColor ||
+        oldDelegate.centerCol != centerCol ||
+        oldDelegate.bottomRow != bottomRow;
   }
 }
 
 double _snapToDevicePixels(double value) {
-  // Snap to nearest device pixel to keep 1px lines crisp.
-  // We assume a typical DPR; Flutter paints in logical pixels, but snapping reduces blur.
-  const dpr = 1.0; // Flutter logical px are already device‑independent; we just round halves.
-  return (value * dpr).floorToDouble() / dpr;
+  return (value * 1.0).roundToDouble() / 1.0;
 }
 
 class _PrimaryButton extends StatelessWidget {
@@ -419,10 +332,10 @@ class _PrimaryButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
+      height: 52,
       child: ElevatedButton.icon(
         style: ElevatedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: const StadiumBorder(),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           elevation: 8,
           backgroundColor: const Color(0xFFF39C12),
           foregroundColor: Colors.black,
@@ -448,13 +361,13 @@ class _SecondaryButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
+      height: 52,
       child: OutlinedButton.icon(
         style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: const StadiumBorder(),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           side: const BorderSide(color: Color(0xFFF39C12), width: 2),
           foregroundColor: const Color(0xFFF39C12),
-          backgroundColor: Colors.black.withOpacity(.30),
+          backgroundColor: Colors.black.withValues(alpha: .25),
         ),
         onPressed: onTap,
         icon: Icon(icon),
@@ -467,16 +380,56 @@ class _SecondaryButton extends StatelessWidget {
   }
 }
 
-class _Glow extends StatelessWidget {
-  const _Glow(this.color, this.size, {super.key});
-  final Color color;
-  final double size;
+class _AwardsButton extends StatelessWidget {
+  const _AwardsButton();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: size, height: size,
-      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(size)),
+    return SizedBox(
+      width: double.infinity,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          OutlinedButton(
+            onPressed: null, // Disabled button
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white.withValues(alpha: 0.5),
+              side: BorderSide(color: Colors.white24, width: 1.5),
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.emoji_events_outlined, size: 20, color: Colors.white54),
+                const SizedBox(width: 10),
+                Text(
+                  'Awards',
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.white54,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            top: 4,
+            right: 16,
+            child: Text(
+              'coming soon',
+              style: GoogleFonts.poppins(
+                fontSize: 10,
+                color: Colors.amber,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

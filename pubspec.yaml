@@ -37,7 +37,6 @@ dependencies:
   just_audio: any
   audio_session: any
   vibration: any
-  games_services: any
   simple_icons: any
   shared_preferences: any
 

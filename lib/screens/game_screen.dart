@@ -221,7 +221,7 @@ class _GameScreenState extends State<GameScreen> {
         (dict.themes.isNotEmpty
             ? dict.themes.first
             : ThemeEntry(name: 'Bolly Words', names: const []));
-  final clues = theme.pickClues(10, maxLen: gridSize);
+    final clues = theme.pickClues(10, maxLen: gridSize);
     // Ensure exactly 10
     final chosen = (clues.length >= 10)
         ? clues.take(10).toList()
@@ -234,15 +234,16 @@ class _GameScreenState extends State<GameScreen> {
               .take(10)
               .toList();
 
+    // Debug: Log the selected words and their lengths
+    debugPrint('Selected words: ${chosen.map((c) => '${c.answer}(${c.answer.length})').join(', ')}');
+
     // Show names immediately
     setState(() {
       _themeTitle = theme.name.toUpperCase();
       _clues = List<Clue>.from(chosen);
       grid = null;
       _sel = null;
-    });
-
-    // Generate until all 10 names are placed per rules
+    });    // Generate until all 10 names are placed per rules
     const int maxAttempts = 1000;
     _Puzzle? puzzle;
     for (int attempt = 0; attempt < maxAttempts; attempt++) {
@@ -255,6 +256,17 @@ class _GameScreenState extends State<GameScreen> {
       if (ok) {
         puzzle = candidate;
         break;
+      }
+    }
+
+    // If constrained algorithm fails, try a simpler approach
+    if (puzzle == null) {
+      debugPrint('Constrained algorithm failed, trying simpler approach...');
+      puzzle = _generateSimplePuzzle(gridSize, chosen.map((c) => c.answer).toList());
+      if (puzzle != null) {
+        debugPrint('Simple algorithm succeeded');
+      } else {
+        debugPrint('Simple algorithm also failed');
       }
     }
 
@@ -322,7 +334,7 @@ class _GameScreenState extends State<GameScreen> {
       int placedUp = 0;
       int placedDiagDR = 0;
       int placedDiagDL = 0;
-      // Choose one of a few mixes summing to 10 with minimums: >=3 horizontal, >=3 vertical, >=2 diag total
+      // Choose one of a few mixes summing to 10 with minimums: >=2 horizontal, >=2 vertical, >=1 diag total
       const mixes = <List<int>>[
         // [horizontalTotal, verticalTotal, diagTotal]
         [4, 4, 2],
@@ -331,6 +343,9 @@ class _GameScreenState extends State<GameScreen> {
         [5, 3, 2],
         [3, 5, 2],
         [3, 3, 4],
+        [4, 5, 1], // More lenient option
+        [5, 4, 1], // More lenient option
+        [6, 3, 1], // More lenient option
       ];
       final pick = mixes[rnd.nextInt(mixes.length)];
       final targetHoriz = pick[0];
@@ -416,13 +431,85 @@ class _GameScreenState extends State<GameScreen> {
       }
 
       if (!failed) {
-  // Enforce a solid mix: at least 3 horizontal, 3 vertical, 2 diagonals total with both diag types present
-  final placedDiagTotal2 = placedDiagDR + placedDiagDL;
-  final placedHoriz2 = placedRight + placedLeft;
-  final placedVert2 = placedDown + placedUp;
-  if (!(placedHoriz2 >= 3 && placedVert2 >= 3 && placedDiagTotal2 >= 2 && placedDiagDR >= 1 && placedDiagDL >= 1)) {
+        // Enforce a more lenient mix: at least 2 horizontal, 2 vertical, 1 diagonal total
+        final placedDiagTotal2 = placedDiagDR + placedDiagDL;
+        final placedHoriz2 = placedRight + placedLeft;
+        final placedVert2 = placedDown + placedUp;
+        if (!(placedHoriz2 >= 2 && placedVert2 >= 2 && placedDiagTotal2 >= 1)) {
           continue;
         }
+        // Fill empties with random letters
+        for (int r = 0; r < size; r++) {
+          for (int c = 0; c < size; c++) {
+            if (grid[r][c].isEmpty) {
+              grid[r][c] = String.fromCharCode(rnd.nextInt(26) + 65);
+            }
+          }
+        }
+        return _Puzzle(grid: grid, words: sorted);
+      }
+    }
+    // Unable to place all words within the attempt budget
+    return null;
+  }
+
+  _Puzzle? _generateSimplePuzzle(int size, List<String> words) {
+    final rnd = Random();
+    // Sort longest first for higher placement success
+    final sorted = List<String>.from(words.map((w) => w.toUpperCase()))
+      ..sort((a, b) => b.length.compareTo(a.length));
+
+    int attempts = 0;
+    while (attempts < 500) {
+      attempts++;
+      final grid = List.generate(
+        size,
+        (_) => List<String>.filled(size, '', growable: false),
+        growable: false,
+      );
+      bool failed = false;
+
+      for (final word in sorted) {
+        // Try all directions without constraints
+        final choices = const [
+          _Dir(0, 1), // right
+          _Dir(0, -1), // left
+          _Dir(1, 0), // down
+          _Dir(-1, 0), // up
+          _Dir(1, 1), // diag down-right
+          _Dir(1, -1), // diag down-left
+        ];
+        choices.shuffle(rnd);
+
+        bool placed = false;
+        int tries = 0;
+        while (!placed && tries < 150) {
+          tries++;
+          final dir = choices[rnd.nextInt(choices.length)];
+          
+          // Compute valid start ranges based on direction
+          final rowMin = dir.dr == -1 ? (word.length - 1) : 0;
+          final rowMax = dir.dr == 1 ? size - word.length : size - 1;
+          final colMin = dir.dc == -1 ? (word.length - 1) : 0;
+          final colMax = dir.dc == 1 ? size - word.length : size - 1;
+          
+          if (rowMax < rowMin || colMax < colMin) continue;
+          
+          final row = rowMin + rnd.nextInt(rowMax - rowMin + 1);
+          final col = colMin + rnd.nextInt(colMax - colMin + 1);
+          
+          if (_canPlace(grid, row, col, dir, word)) {
+            _place(grid, row, col, dir, word);
+            placed = true;
+          }
+        }
+        if (!placed) {
+          failed = true;
+          break;
+        }
+      }
+
+      if (!failed) {
         // Fill empties with random letters
         for (int r = 0; r < size; r++) {
           for (int c = 0; c < size; c++) {
@@ -689,7 +776,7 @@ class _GameScreenState extends State<GameScreen> {
                                 clue.label,
                                 key: ValueKey(isFound),
                                 style: TextStyle(
-                                  fontSize: 8,
+                                  fontSize: 11,
                                   fontWeight: FontWeight.w700,
                                   color: isFound ? Colors.white : onSurface,
                                   decoration: isFound
@@ -933,7 +1020,7 @@ class _GameScreenState extends State<GameScreen> {
                                                   // Responsive font size based on inner width
                                                   final tile =
                                                       inner.maxWidth / gridSize;
-                                                  final fontSize = tile * 0.34;
+                                                  final fontSize = tile * 0.55;
                                                   return AnimatedScale(
                                                     duration: const Duration(
                                                       milliseconds: 100,
@@ -963,23 +1050,12 @@ class _GameScreenState extends State<GameScreen> {
                                                           style: TextStyle(
                                                             fontSize: fontSize,
                                                             fontWeight:
-                                                                FontWeight.w800,
+                                                                FontWeight.normal,
                                                             color:
                                                                 (inSelected ||
                                                                     inFound)
                                                                 ? Colors.white
                                                                 : onSurface,
-                                                            shadows: const [
-                                                              Shadow(
-                                                                color: Colors
-                                                                    .black38,
-                                                                blurRadius: 2,
-                                                                offset: Offset(
-                                                                  0,
-                                                                  1,
-                                                                ),
-                                                              ),
-                                                            ],
                                                           ),
                                                         ),
                                                       ),

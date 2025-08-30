@@ -40,7 +40,6 @@ class _OptionsScreenState extends State<OptionsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(title: const Text('Options')),
       body: !_loaded
@@ -89,24 +88,11 @@ class _OptionsScreenState extends State<OptionsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _ThemeSwatch(
-                          key: const Key('swatch_Bappi'),
-                          theme: AppTheme.bappi,
-                          selected: _repo.theme == AppTheme.bappi,
-                          title: 'Bappi',
-                          subtitle: 'Gold',
-                          onTap: () {
-                            setState(() => _repo.setTheme(AppTheme.bappi));
-                            context.read<FeedbackSettings>().setTheme(AppTheme.bappi);
-                            _saveSnack();
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        _ThemeSwatch(
                           key: const Key('swatch_Kashyap'),
                           theme: AppTheme.kashyap,
                           selected: _repo.theme == AppTheme.kashyap,
                           title: 'Kashyap',
-                          subtitle: 'Moody dark',
+                          subtitle: 'Dark and moody',
                           onTap: () {
                             setState(() => _repo.setTheme(AppTheme.kashyap));
                             context.read<FeedbackSettings>().setTheme(AppTheme.kashyap);
@@ -350,8 +336,8 @@ class _ThemeSwatch extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final td = AppThemes.themeData(theme);
-    final primary = td.colorScheme.primary;
-    final secondary = td.colorScheme.secondary;
+    final primary = td.colorScheme.primary; // ignore: unused_local_variable
+    final secondary = td.colorScheme.secondary; // ignore: unused_local_variable
     final surface = Theme.of(context).colorScheme.surface;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),

@@ -189,34 +189,37 @@ class FeedbackController with ChangeNotifier {
       return;
     }
     
+    // Initialize audio in background to avoid blocking UI
+    _initializeAudioInBackground();
+  }
+
+  void _initializeAudioInBackground() async {
     try {
-      debugPrint('Configuring audio session...');
-  await AudioSession.instance;
+      debugPrint('Configuring audio session in background...');
       await _configureSession();
       
-      // Initialize sounds in parallel for faster startup
-      debugPrint('Initializing sound effects...');
-      await Future.wait([
-        _initializeTickSound(),
-        _initializeFoundSound(),
-        _initializeInvalidSound(),
-        _initializeFireworksSound(),
-  _initializeClueSound(),
-      ]);
+      // Initialize sounds in parallel for faster startup, but don't await
+      debugPrint('Initializing sound effects in background...');
+      unawaited(_initializeTickSound());
+      unawaited(_initializeFoundSound());
+      unawaited(_initializeInvalidSound());
+      unawaited(_initializeFireworksSound());
+      unawaited(_initializeClueSound());
       
       _audioAvailable = true;
       debugPrint('FeedbackController initialized. Audio available: $_audioAvailable');
-      debugPrint('Sound status - tick:$_tickReady, found:$_foundReady, invalid:$_invalidReady, fireworks:$_fireworksReady');
-      
-      // Verify all sounds are ready after a short delay
-      Future.delayed(const Duration(seconds: 1), () {
-  debugPrint('Sound status after delay - tick:$_tickReady, found:$_foundReady, invalid:$_invalidReady, fireworks:$_fireworksReady, clue:$_clueReady');
-      });
       
     } catch (e) {
       _audioAvailable = false;
       debugPrint('Error initializing FeedbackController: $e');
     }
+  }
+
+  // Helper method for unawaited futures
+  void unawaited(Future<void> future) {
+    future.catchError((error) {
+      debugPrint('Background audio initialization error: $error');
+    });
   }
 
   String _assetPath(String file) => 'assets/audio/$file';
@@ -227,13 +230,10 @@ class FeedbackController with ChangeNotifier {
       final session = await AudioSession.instance;
       debugPrint('Audio session instance obtained');
       
+      // Use more permissive settings that work better on iOS simulator
       final config = AudioSessionConfiguration(
-        avAudioSessionCategory: settings.playInSilentMode
-            ? AVAudioSessionCategory.playback
-            : AVAudioSessionCategory.ambient,
-        avAudioSessionCategoryOptions: settings.playInSilentMode
-            ? AVAudioSessionCategoryOptions.mixWithOthers | AVAudioSessionCategoryOptions.duckOthers
-            : AVAudioSessionCategoryOptions.mixWithOthers,
+        avAudioSessionCategory: AVAudioSessionCategory.ambient,
+        avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.mixWithOthers,
         avAudioSessionMode: AVAudioSessionMode.defaultMode,
         androidAudioAttributes: const AndroidAudioAttributes(
           contentType: AndroidAudioContentType.sonification,
@@ -242,14 +242,15 @@ class FeedbackController with ChangeNotifier {
         androidWillPauseWhenDucked: false,
       );
       
-      debugPrint('Configuring audio session with settings: playInSilentMode=${settings.playInSilentMode}');
+      debugPrint('Configuring audio session with ambient settings');
       await session.configure(config);
       debugPrint('Audio session configured');
       
-      await session.setActive(true);
-      debugPrint('Audio session activated');
+      // Don't force activation - let the system decide
+      debugPrint('Audio session configuration complete');
     } catch (e) {
-      debugPrint('Audio session configure error: $e');
+      debugPrint('Audio session configure error (non-fatal): $e');
+      // Don't throw - continue without proper audio session
     }
   }
 
@@ -374,22 +375,22 @@ class FeedbackController with ChangeNotifier {
       return;
     }
     try {
-      debugPrint('Seeking audio to start for '+label+' (asset: '+(asset ?? 'unknown')+')...');
+      debugPrint('Seeking audio to start for $label (asset: ${asset ?? 'unknown'})...');
       await player.seek(Duration.zero);
-      debugPrint('Starting audio playback for '+label+'...');
+      debugPrint('Starting audio playback for $label...');
       await player.play();
-      debugPrint('Audio playback started successfully for '+label);
+      debugPrint('Audio playback started successfully for $label');
     } catch (e) {
-      debugPrint('Error playing sound for '+label+': '+e.toString());
+      debugPrint('Error playing sound for $label: ${e.toString()}');
       // Try to reinitialize the audio session on error
       try {
-        debugPrint('Attempting to reinitialize audio session for '+label+'...');
+        debugPrint('Attempting to reinitialize audio session for $label...');
         await _configureSession();
-        debugPrint('Audio session reconfigured, retrying playback for '+label+'...');
+        debugPrint('Audio session reconfigured, retrying playback for $label...');
         await player.seek(Duration.zero);
         await player.play();
       } catch (retryError) {
-        debugPrint('Failed to recover audio for '+label+': '+retryError.toString());
+        debugPrint('Failed to recover audio for $label: ${retryError.toString()}');
       }
     }
   }

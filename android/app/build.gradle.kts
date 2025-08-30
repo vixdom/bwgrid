@@ -38,8 +38,8 @@ android {
         targetSdk = flutter.targetSdkVersion
 
         // 🚨 MANUALLY bump these for every Play Store upload
-        versionCode = 4
-        versionName = "1.0.6"
+        versionCode = 6
+        versionName = "1.0.8"
     }
 
     signingConfigs {
@@ -66,6 +66,9 @@ android {
             isMinifyEnabled = false
             isShrinkResources = false
             isDebuggable = false
+            ndk {
+                debugSymbolLevel = "none"
+            }
         }
         getByName("debug") {
             isDebuggable = true

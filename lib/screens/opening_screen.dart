@@ -1,10 +1,7 @@
-import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:provider/provider.dart';
 import '../services/achievements_service.dart';
-import '../models/feedback_settings.dart';
 import '../build_info.dart';
 
 // ...existing code...
@@ -626,8 +623,8 @@ class _GridTiles extends StatelessWidget {
 class _CinematicBackground extends StatefulWidget {
   const _CinematicBackground({
     required this.paused,
-    this.density = 1.0,
-    this.speedScale = 1.0,
+    this.density = 1.0, // ignore: unused_element_parameter
+    this.speedScale = 1.0, // ignore: unused_element_parameter
   });
   final bool paused;
   final double density; // 0..1 affects number of elements

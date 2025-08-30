@@ -357,7 +357,7 @@
         "NeetuSingh",
         "Meenakshi",
         "Sridevi",
-        "ShwetaBas"
+        "ShwetaBasu"
       ]
     },
     {

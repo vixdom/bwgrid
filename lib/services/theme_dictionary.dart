@@ -28,7 +28,7 @@ class ThemeDictionary {
   /// Pick a random theme that has at least [minWords] words with length <= [maxLen].
   ThemeEntry? pickRandom(int minWords, {required int maxLen}) {
     final candidates = themes.where((t) {
-      final usable = t.names.map(_sanitize).where((w) => w.length <= maxLen && w.length >= 3).toSet();
+      final usable = t.names.map(_sanitize).where((w) => w.length <= maxLen && w.length >= 3 && w.length < maxLen).toSet();
       return usable.length >= minWords;
     }).toList();
     if (candidates.isEmpty) return null;
@@ -64,7 +64,7 @@ String _labelize(String original) {
 extension ThemeEntryHelpers on ThemeEntry {
   /// Return up to [count] unique, sanitized words (A-Z only), max length [maxLen].
   List<String> pickWords(int count, {required int maxLen}) {
-    final pool = names.map(_sanitize).where((w) => w.length <= maxLen && w.length >= 3).toSet().toList();
+    final pool = names.map(_sanitize).where((w) => w.length < maxLen && w.length >= 3).toSet().toList();
     pool.shuffle();
     return pool.take(count).toList();
   }
@@ -74,7 +74,7 @@ extension ThemeEntryHelpers on ThemeEntry {
     final unique = <String, Clue>{};
     for (final n in names) {
       final ans = _sanitize(n);
-      if (ans.length >= 3 && ans.length <= maxLen) {
+      if (ans.length >= 3 && ans.length < maxLen) {
         unique[ans] = Clue(answer: ans, label: _labelize(n));
       }
     }

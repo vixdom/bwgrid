@@ -35,18 +35,20 @@ class AppThemes {
         );
 
       case AppTheme.kashyap:
-        // Rich dark theme
+        // Golden accents on black background (using Bappi's color scheme)
+        const gold = Color(0xFFFBC02D); // vivid gold
+        const goldDeep = Color(0xFFFFC107);
         return ThemeData(
           useMaterial3: true,
           colorScheme: const ColorScheme.dark(
-            surface: Color(0xFF17171C),
+            surface: Color(0xFF0B0B0B),
             onSurface: Color(0xFFFFFFFF),
-            outline: Color(0xFF2E2E36),
-            primary: Color(0xFFB39DDB),
+            outline: Color(0xFF2A2A2A),
+            primary: gold,
             onPrimary: Colors.black,
-            secondary: Color(0xFFD81B60),
+            secondary: goldDeep,
           ),
-          scaffoldBackgroundColor: const Color(0xFF0E0E12),
+          scaffoldBackgroundColor: const Color(0xFF000000),
           visualDensity: VisualDensity.adaptivePlatformDensity,
         );
 

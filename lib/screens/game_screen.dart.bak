@@ -1,0 +1,512 @@
+import 'dart:math';
+import 'dart:async';
+import 'dart:ui';
+import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
+import 'package:provider/provider.dart';
+import '../services/game_controller.dart';
+import '../controllers/selection_controller.dart';
+import '../widgets/film_reel_painter.dart';
+import '../services/theme_dictionary.dart';
+import '../models/feedback_settings.dart';
+
+// Helper function to avoid unawaited futures warning
+void unawaited(Future<void> future) {}
+
+class FoundWord {
+  final String word;
+  final List<Offset> path;
+  
+  FoundWord(this.word, this.path);
+}
+
+class Clue {
+  final String answer;
+  final String label;
+  
+  const Clue({required this.answer, required this.label});
+}
+
+class GameScreen extends StatefulWidget {
+  const GameScreen({super.key});
+
+  @override
+  State<GameScreen> createState() => _GameScreenState();
+}
+
+class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
+  static const int gridSize = 12;
+  final GlobalKey _gridKey = GlobalKey();
+  List<List<String>>? grid;
+  SelectionController? _sel;
+  String _themeTitle = '';
+  List<Clue> _clues = [];
+  bool _showConfetti = false;
+  List<_ConfettiDot> _confetti = [];
+  bool _startingNewPuzzle = false;
+  int _score = 0;
+  bool _hintUnlocked = false;
+  final Random _rnd = Random();
+  Timer? _confettiTimer;
+  
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _initializeGame();
+  }
+  
+  @override
+  void dispose() {
+    _confettiTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+  
+  Future<void> _initializeGame() async {
+    await _loadPuzzle();
+    if (mounted) setState(() {});
+  }
+  
+  // Helper to verify word is present in grid in allowed directions
+  bool _isWordInGrid(List<List<String>> grid, String word) {
+    final n = grid.length;
+    word = word.toUpperCase();
+    
+    // Check all possible directions
+    for (int r = 0; r < n; r++) {
+      for (int c = 0; c < n; c++) {
+        // Check right
+        if (c + word.length <= n) {
+          bool match = true;
+          for (int i = 0; i < word.length; i++) {
+            if (grid[r][c + i] != word[i]) {
+              match = false;
+              break;
+            }
+          }
+          if (match) return true;
+        }
+        
+        // Check left
+        if (c - word.length + 1 >= 0) {
+          bool match = true;
+          for (int i = 0; i < word.length; i++) {
+            if (grid[r][c - i] != word[i]) {
+              match = false;
+              break;
+            }
+          }
+          if (match) return true;
+        }
+        
+        // Check down
+        if (r + word.length <= n) {
+          bool match = true;
+          for (int i = 0; i < word.length; i++) {
+            if (grid[r + i][c] != word[i]) {
+              match = false;
+              break;
+            }
+          }
+          if (match) return true;
+        }
+        
+        // Check up
+        if (r - word.length + 1 >= 0) {
+          bool match = true;
+          for (int i = 0; i < word.length; i++) {
+            if (grid[r - i][c] != word[i]) {
+              match = false;
+              break;
+            }
+          }
+          if (match) return true;
+        }
+        
+        // Check diagonal down-right
+        if (r + word.length <= n && c + word.length <= n) {
+          bool match = true;
+          for (int i = 0; i < word.length; i++) {
+            if (grid[r + i][c + i] != word[i]) {
+              match = false;
+              break;
+            }
+          }
+          if (match) return true;
+        }
+        
+        // Check diagonal down-left
+        if (r + word.length <= n && c - word.length + 1 >= 0) {
+          bool match = true;
+          for (int i = 0; i < word.length; i++) {
+            if (grid[r + i][c - i] != word[i]) {
+              match = false;
+              break;
+            }
+          }
+          if (match) return true;
+        }
+        
+        // Check diagonal up-right
+        if (r - word.length + 1 >= 0 && c + word.length <= n) {
+          bool match = true;
+          for (int i = 0; i < word.length; i++) {
+            if (grid[r - i][c + i] != word[i]) {
+              match = false;
+              break;
+            }
+          }
+          if (match) return true;
+        }
+        
+        // Check diagonal up-left
+        if (r - word.length + 1 >= 0 && c - word.length + 1 >= 0) {
+          bool match = true;
+          for (int i = 0; i < word.length; i++) {
+            if (grid[r - i][c - i] != word[i]) {
+              match = false;
+              break;
+            }
+          }
+          if (match) return true;
+        }
+      }
+    }
+    return false;
+  }
+  static const int gridSize = 12;
+  List<List<String>>? grid;
+  SelectionController? _sel;
+  bool _showConfetti = false;
+  List<_ConfettiDot> _confetti = const [];
+  String _themeTitle = '';
+  List<Clue> _clues = const [];
+  bool _startingNewPuzzle = false;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadPuzzle());
+  }
+
+  // Grid-local gesture mapping using inner constraints
+  void _onGridPanStart(DragStartDetails details, BoxConstraints inner) {
+    if (_sel == null || _startingNewPuzzle) return;
+    
+    final cell = inner.maxWidth / gridSize;
+    final col = (details.localPosition.dx / cell).floor();
+    final row = (details.localPosition.dy / cell).floor();
+    
+    if (row >= 0 && row < gridSize && col >= 0 && col < gridSize) {
+      setState(() {
+        _sel!.beginAt(Offset(row.toDouble(), col.toDouble()));
+      });
+      
+      // Play tick sound for the first letter
+      final gameController = context.read<GameController>();
+      unawaited(gameController.onNewCellSelected());
+      debugPrint('Pan started at row: $row, col: $col');
+    }
+  }
+
+  void _onGridPanUpdate(DragUpdateDetails details, BoxConstraints inner) {
+    if (_sel == null || !_sel!.hasActive || _startingNewPuzzle) return;
+    
+    final cell = inner.maxWidth / gridSize;
+    final col = (details.localPosition.dx / cell).floor();
+    final row = (details.localPosition.dy / cell).floor();
+    
+    if (row >= 0 && row < gridSize && col >= 0 && col < gridSize) {
+      final currentCell = Offset(row.toDouble(), col.toDouble());
+      
+      // Only proceed if we moved to a new cell
+      if (_sel!.activePath.isEmpty || _sel!.activePath.last != currentCell) {
+        final changed = _sel!.extendTo(currentCell);
+        if (changed) {
+          setState(() {}); // Update the UI
+          
+          // Play tick sound for each new cell
+          final gameController = context.read<GameController>();
+          unawaited(gameController.onNewCellSelected());
+        }
+      }
+    }
+  }
+
+  Future<void> _onPanEnd(DragEndDetails details) async {
+    if (_sel == null || _startingNewPuzzle) return;
+    
+    final wasActive = _sel!.hasActive;
+    final prevLen = _sel!.activePath.length;
+    final found = _sel!.commitOrReset();
+    final gc = context.read<GameController>();
+    
+    if (found != null) {
+      await _handleWordFound(found);
+      
+      // Check hint unlock at 20 points
+      if (!_hintUnlocked && _score >= 20) {
+        if (mounted) {
+          setState(() {
+            _hintUnlocked = true;
+          });
+        }
+        // Play hint unlocked sound
+        await gc.onHintUnlocked();
+        
+        // Play clue sound
+        await gc.feedback.playClue();
+      }
+      
+      // Accessibility announce
+      if (mounted) {
+        SemanticsService.announce(
+          'Found ${found.word}. ${_sel?.found.length ?? 0} of 10 words.',
+          TextDirection.ltr,
+        );
+        
+        // Check if puzzle is complete
+        if (_sel?.isComplete == true) {
+          debugPrint('Puzzle complete!');
+          await gc.onPuzzleComplete();
+          _spawnConfetti();
+        }
+      }
+    } else if (wasActive && prevLen >= 2) {
+      // Only play invalid sound if there was a meaningful selection before reset
+      debugPrint('Playing invalid selection sound');
+      await gc.onInvalid();
+    }
+    
+    if (mounted) {
+      setState(() {});
+    }
+  }
+  if (match) return true;
+}
+
+// Check diagonal down-left
+if (r + word.length <= n && c - word.length + 1 >= 0) {
+  bool match = true;
+  for (int i = 0; i < word.length; i++) {
+    if (grid[r + i][c - i] != word[i]) {
+      match = false;
+      break;
+    }
+  }
+  if (match) return true;
+}
+
+// Check diagonal up-right
+if (r - word.length + 1 >= 0 && c + word.length <= n) {
+  bool match = true;
+  for (int i = 0; i < word.length; i++) {
+    if (grid[r - i][c + i] != word[i]) {
+      match = false;
+      break;
+    }
+  }
+  if (match) return true;
+}
+
+// Check diagonal up-left
+if (r - word.length + 1 >= 0 && c - word.length + 1 >= 0) {
+  bool match = true;
+  for (int i = 0; i < word.length; i++) {
+    if (grid[r - i][c - i] != word[i]) {
+      match = false;
+      break;
+    }
+  }
+  if (match) return true;
+}
+}
+
+// Check if a cell is part of any found word path
+bool _isInFoundPaths(Offset cell, SelectionController sc) {
+  for (final path in sc.found) {
+    for (final point in path.points) {
+      if (point.dx == cell.dx && point.dy == cell.dy) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// Spawn confetti animation
+void _spawnConfetti() {
+  if (!mounted) return;
+  
+  setState(() {
+    _showConfetti = true;
+    _confetti = List.generate(
+      100,
+      (index) => _ConfettiDot(
+        position: Offset(
+          _rnd.nextDouble() * MediaQuery.of(context).size.width,
+          -10.0,
+        ),
+        color: Colors.primaries[_rnd.nextInt(Colors.primaries.length)],
+        size: _rnd.nextDouble() * 10 + 5,
+        speed: _rnd.nextDouble() * 2 + 2,
+        angle: _rnd.nextDouble() * 2 * pi,
+        angleSpeed: _rnd.nextDouble() * 0.2 - 0.1,
+      ),
+    );
+  });
+  
+  _confettiTimer?.cancel();
+  _confettiTimer = Timer(const Duration(seconds: 5), () {
+    if (mounted) {
+      setState(() {
+        _showConfetti = false;
+        _confetti = [];
+      });
+    }
+  });
+}
+
+// Handle word found
+Future<void> _handleWordFound(FoundWord found) async {
+  if (!mounted || _startingNewPuzzle) return;
+  
+  // Update score
+  setState(() {
+    _score += 10; // 10 points per word
+  });
+  
+  // Play found sound
+  final gc = context.read<GameController>();
+  await gc.onWordFound();
+  
+  // Haptic feedback
+  await gc.feedback.playWordFound();
+  
+  // Visual feedback
+  _spawnConfetti();
+}
+
+// Load a new puzzle
+Future<void> _loadPuzzle() async {
+  if (!mounted) return;
+  
+  setState(() {
+    _startingNewPuzzle = true;
+  });
+  
+  try {
+    // TODO: Implement actual puzzle loading logic
+    await Future.delayed(const Duration(milliseconds: 500));
+    
+    if (!mounted) return;
+    
+    // Initialize grid and selection controller
+    grid = List.generate(gridSize, (i) => List.filled(gridSize, ''));
+    _sel = SelectionController(gridSize: gridSize);
+    
+    // Reset game state
+    _score = 0;
+    _hintUnlocked = false;
+    _showConfetti = false;
+    _confetti = [];
+    
+    // TODO: Load actual theme and clues
+    _themeTitle = 'Bollywood Movies';
+    _clues = [];
+    
+  } catch (e) {
+    debugPrint('Error loading puzzle: $e');
+    // TODO: Show error to user
+  } finally {
+    if (mounted) {
+      setState(() {
+        _startingNewPuzzle = false;
+      });
+    }
+  }
+}
+
+// Toggle hint unlocked state (for testing)
+void _toggleHintUnlocked() {
+  if (!mounted) return;
+  setState(() {
+    _hintUnlocked = !_hintUnlocked;
+  });
+}
+
+// Play again with a new puzzle
+Future<void> _playAgain() async {
+  if (_startingNewPuzzle) return;
+  
+  setState(() {
+    _startingNewPuzzle = true;
+  });
+  
+  try {
+    // Clear current state
+    _sel?.clear();
+    
+    // Load new puzzle
+    await _loadPuzzle();
+    
+    if (mounted) {
+      setState(() {
+        _startingNewPuzzle = false;
+      });
+    }
+  } catch (e) {
+    debugPrint('Error in play again: $e');
+    if (mounted) {
+      setState(() {
+        _startingNewPuzzle = false;
+      });
+    }
+  }
+}
+
+// A simple class to hold confetti particle state
+class _ConfettiDot {
+  final Offset position;
+  final Color color;
+  final double size;
+  final double speed;
+  double angle;
+  final double angleSpeed;
+  
+  _ConfettiDot({
+    required this.position,
+    required this.color,
+    required this.size,
+    required this.speed,
+    required this.angle,
+    required this.angleSpeed,
+  });
+  
+  _ConfettiDot copyWith({
+    Offset? position,
+    double? angle,
+  }) {
+    return _ConfettiDot(
+      position: position ?? this.position,
+      color: color,
+      size: size,
+      speed: speed,
+      angle: angle ?? this.angle,
+      angleSpeed: angleSpeed,
+    );
+  }
+}
+
+class _Puzzle {
+  final List<List<String>> grid;
+  final List<String> words;
+  _Puzzle({required this.grid, required this.words});
+}
+
+class _Dir {
+  final int dr;
+  final int dc;
+  const _Dir(this.dr, this.dc);
+}

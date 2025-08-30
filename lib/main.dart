@@ -9,6 +9,7 @@ import 'services/achievements_service.dart';
 
 import 'screens/welcome_screen.dart' as welcome;
 import 'screens/game_screen.dart' as game;
+import 'screens/options_screen.dart' as options;
 
 void main() {
   runApp(const BollyWordGridApp());
@@ -59,6 +60,7 @@ class BollyWordGridApp extends StatelessWidget {
             if (!ach.isSignedIn) {
               await ach.signIn();
               if (!ach.isSignedIn) {
+                // ignore: use_build_context_synchronously
                 final messenger = ScaffoldMessenger.maybeOf(context);
                 messenger?.showSnackBar(
                   const SnackBar(
@@ -84,6 +86,7 @@ class BollyWordGridApp extends StatelessWidget {
             routes: {
               '/': (context) => welcome.WelcomeScreen(),
               '/game': (context) => game.GameScreen(),
+              '/options': (context) => const options.OptionsScreen(),
             },
           );
         },
