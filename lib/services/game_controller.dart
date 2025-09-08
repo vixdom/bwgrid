@@ -42,9 +42,9 @@ class GameController with ChangeNotifier {
         await feedback.playWordFound();
       }
       if (settings.hapticsEnabled) {
-        debugPrint('Playing medium haptic');
-        // Spec: Correct word -> mediumImpact
-        await _hapticForStrength(HapticStrength.medium);
+  debugPrint('Playing success haptic');
+  // Spec: Correct word -> success notification haptic
+  await feedback.hapticSuccess();
       }
   // Achievement: first word found
   final a1 = achievements;

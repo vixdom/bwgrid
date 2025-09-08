@@ -3,7 +3,6 @@ import java.util.Properties
 plugins {
     id("com.android.application")
     id("kotlin-android")
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
@@ -21,25 +20,22 @@ android {
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
-    // Icons are now stored directly under src/main/res/mipmap-*/ic_launcher.png
-
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_11.toString()
+        jvmTarget = "11"
     }
 
     defaultConfig {
         applicationId = "com.moviemasala.wordsearch"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-
-        // 🚨 MANUALLY bump these for every Play Store upload
-        versionCode = 6
-        versionName = "1.0.8"
+        versionCode = 8
+        versionName = "1.0.10"
+        multiDexEnabled = true
     }
 
     signingConfigs {
@@ -61,19 +57,39 @@ android {
     }
 
     buildTypes {
-        getByName("release") {
+        release {
             signingConfig = signingConfigs.getByName("release")
-            isMinifyEnabled = false
-            isShrinkResources = false
-            isDebuggable = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Disable NDK debug symbols stripping
+            packagingOptions {
+                jniLibs.keepDebugSymbols.add("**/*.so")
+            }
             ndk {
-                debugSymbolLevel = "none"
+                // Explicitly specify the ABI filters to include
+                abiFilters.clear()
+                abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a", "x86_64"))
+                debugSymbolLevel = "NONE"
             }
         }
-        getByName("debug") {
+        debug {
             isDebuggable = true
+            applicationIdSuffix = ".debug"
         }
     }
+}
+
+dependencies {
+    implementation("androidx.multidex:multidex:2.0.1")
+    implementation("androidx.core:core-ktx:1.12.0")
+    // Removed deprecated Play Core deps (core/core-ktx) that are incompatible with targetSdk 34
+    // If you need in-app updates or review, use:
+    // implementation("com.google.android.play:app-update:2.1.0")
+    // implementation("com.google.android.play:review:2.0.1")
+        // Provide Play Core classes only at compile time to satisfy Flutter deferred components references.
+        // This avoids packaging deprecated Play Core into the bundle (Play Console rejects it on targetSdk 34).
+        compileOnly("com.google.android.play:core:1.10.3")
 }
 
 flutter {

@@ -108,8 +108,6 @@ class _GameScreenState extends State<GameScreen> {
     unawaited(_loadPuzzle());
   }
 
-  // Removed unused legacy _onPanUpdate
-
   // Grid-local gesture mapping using inner constraints
   void _onGridPanStart(DragStartDetails details, BoxConstraints inner) {
     if (_sel == null) return;
@@ -120,10 +118,8 @@ class _GameScreenState extends State<GameScreen> {
       setState(() {
         _sel!.beginAt(Offset(row.toDouble(), col.toDouble()));
       });
-      // Play tick sound for the first letter
       final gameController = context.read<GameController>();
       unawaited(gameController.onNewCellSelected());
-      debugPrint('Pan started at row: $row, col: $col');
     }
   }
 
@@ -135,12 +131,10 @@ class _GameScreenState extends State<GameScreen> {
     
     if (row >= 0 && row < gridSize && col >= 0 && col < gridSize) {
       final currentCell = Offset(row.toDouble(), col.toDouble());
-      // Only play sound if we moved to a new cell
       if (_sel!.activePath.isEmpty || _sel!.activePath.last != currentCell) {
         final changed = _sel!.extendTo(currentCell);
         if (changed) {
-          setState(() {}); // Update the UI
-          // Play tick sound for each new cell
+          setState(() {});
           final gameController = context.read<GameController>();
           unawaited(gameController.onNewCellSelected());
         }
@@ -149,50 +143,32 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   Future<void> _onPanEnd(DragEndDetails details) async {
-    // Capture selection state before it gets reset inside commitOrReset
     final wasActive = _sel?.hasActive == true;
     final prevLen = _sel?.activePath.length ?? 0;
     final found = _sel?.commitOrReset();
     final gc = context.read<GameController>();
+    setState(() {});
     
-    // Always hide the preview when the user lifts their finger
-    setState(() {
-      // The preview will be hidden automatically because _sel.hasActive will be false after commitOrReset
-    });
-    
-  if (found != null) {
-      debugPrint('Word found: ${found.word}');
-      // Scoring: +10 per correct word
+    if (found != null) {
       setState(() => score += 10);
       await gc.onWordFound();
-      debugPrint('After onWordFound');
-      // Check hint unlock at 20 points and play a pop/clue sound once
       if (!_hintUnlocked && score >= 20) {
         _hintUnlocked = true;
         unawaited(gc.feedback.playClue());
       }
-      
-      // Accessibility announce
       // ignore: use_build_context_synchronously
       SemanticsService.announce(
         'Found ${found.word}. ${_sel?.found.length ?? 0} of 10 words.',
         TextDirection.ltr,
       );
-      
       if (_sel?.isComplete == true) {
-        debugPrint('Puzzle complete!');
         await gc.onPuzzleComplete();
         _spawnConfetti();
       }
     } else if (wasActive && prevLen >= 2) {
-      // Only play invalid sound if there was a meaningful selection before reset
-      debugPrint('Playing invalid selection sound');
       await gc.onInvalid();
     }
   }
-
-  // Word found / invalid triggers would be called from validation logic
-  // using GameController.onWordFound() / onInvalid().
 
   bool _isInFoundPaths(Offset cell, SelectionController sc) {
     for (final fp in sc.found) {
@@ -203,26 +179,21 @@ class _GameScreenState extends State<GameScreen> {
     return false;
   }
 
-  // Removed unused _randomColor()
-
   // Score
   int score = 0;
   bool _hintUnlocked = false;
 
   Future<void> _loadPuzzle() async {
-    // Load theme dictionary
     final dict = await ThemeDictionary.loadFromAsset(
       'assets/key and themes.txt',
     );
     final picked = dict.pickRandom(10, maxLen: gridSize);
-    // Fallback in the unlikely case pickRandom returns null
     final theme =
         picked ??
         (dict.themes.isNotEmpty
             ? dict.themes.first
             : ThemeEntry(name: 'Bolly Words', names: const []));
     final clues = theme.pickClues(10, maxLen: gridSize);
-    // Ensure exactly 10
     final chosen = (clues.length >= 10)
         ? clues.take(10).toList()
         : (clues +
@@ -234,16 +205,15 @@ class _GameScreenState extends State<GameScreen> {
               .take(10)
               .toList();
 
-    // Debug: Log the selected words and their lengths
     debugPrint('Selected words: ${chosen.map((c) => '${c.answer}(${c.answer.length})').join(', ')}');
 
-    // Show names immediately
     setState(() {
       _themeTitle = theme.name.toUpperCase();
       _clues = List<Clue>.from(chosen);
       grid = null;
       _sel = null;
-    });    // Generate until all 10 names are placed per rules
+    });
+
     const int maxAttempts = 1000;
     _Puzzle? puzzle;
     for (int attempt = 0; attempt < maxAttempts; attempt++) {
@@ -259,7 +229,6 @@ class _GameScreenState extends State<GameScreen> {
       }
     }
 
-    // If constrained algorithm fails, try a simpler approach
     if (puzzle == null) {
       debugPrint('Constrained algorithm failed, trying simpler approach...');
       puzzle = _generateSimplePuzzle(gridSize, chosen.map((c) => c.answer).toList());
@@ -271,22 +240,21 @@ class _GameScreenState extends State<GameScreen> {
     }
 
     if (puzzle == null) {
-      // As a last resort, keep showing names and a message; avoid showing a bogus grid
       debugPrint('Failed to generate a valid puzzle after $maxAttempts attempts');
       return;
     }
 
-    final p = puzzle; // non-null
+    // Success: apply puzzle grid and initialize selection controller
+    final newGrid = puzzle.grid;
+    final targetWords = chosen.map((c) => c.answer.toUpperCase()).toSet();
     setState(() {
-      grid = p.grid;
+      grid = newGrid;
       _sel = SelectionController(
-        grid: grid!,
+        grid: newGrid,
         gridSize: gridSize,
-        targetWords: p.words.toSet(),
+        targetWords: targetWords,
       );
     });
-  // Reset completion celebration state for the new puzzle
-  context.read<GameController>().resetCelebration();
   }
 
   Future<void> _playAgain() async {
@@ -303,18 +271,8 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
-  // Constrained puzzle generator contract:
-  // - Inputs: size (N), words (10 strings A-Z)
-  // - Behavior: place all words on NxN grid using directions:
-  //   horizontal: right (0,1), left (0,-1)
-  //   vertical:   down (1,0), up (-1,0)
-  //   diagonal:   down-right (1,1), down-left (1,-1)
-  //   Note: no upward diagonals; diagonals are only downward.
-  //   Randomize direction mix slightly to avoid patterns; fill remaining with random A-Z.
-  // - Output: Puzzle(grid, words)
   _Puzzle? _generateConstrainedPuzzle(int size, List<String> words) {
     final rnd = Random();
-    // Sort longest first for higher placement success
     final sorted = List<String>.from(words.map((w) => w.toUpperCase()))
       ..sort((a, b) => b.length.compareTo(a.length));
 
@@ -327,25 +285,22 @@ class _GameScreenState extends State<GameScreen> {
         growable: false,
       );
       bool failed = false;
-      // Enforce a mix: target counts for directions (slightly randomized per attempt)
       int placedRight = 0;
       int placedLeft = 0;
       int placedDown = 0;
       int placedUp = 0;
       int placedDiagDR = 0;
       int placedDiagDL = 0;
-      // Choose one of a few mixes summing to 10 with minimums: >=2 horizontal, >=2 vertical, >=1 diag total
       const mixes = <List<int>>[
-        // [horizontalTotal, verticalTotal, diagTotal]
         [4, 4, 2],
         [4, 3, 3],
         [3, 4, 3],
         [5, 3, 2],
         [3, 5, 2],
         [3, 3, 4],
-        [4, 5, 1], // More lenient option
-        [5, 4, 1], // More lenient option
-        [6, 3, 1], // More lenient option
+        [4, 5, 1],
+        [5, 4, 1],
+        [6, 3, 1],
       ];
       final pick = mixes[rnd.nextInt(mixes.length)];
       final targetHoriz = pick[0];
@@ -353,7 +308,6 @@ class _GameScreenState extends State<GameScreen> {
       final targetDiagTotal = pick[2];
 
       for (final word in sorted) {
-        // Prioritize directions that are under target to meet the mix
         final choices = <_Dir>[];
         final placedHoriz = placedRight + placedLeft;
         final placedVert = placedDown + placedUp;
@@ -367,49 +321,37 @@ class _GameScreenState extends State<GameScreen> {
         }
         final placedDiagTotal = placedDiagDR + placedDiagDL;
         if (placedDiagTotal < targetDiagTotal) {
-          // Prefer the diagonal that is currently underrepresented
           if (placedDiagDR <= placedDiagDL) choices.add(const _Dir(1, 1));
           if (placedDiagDL <= placedDiagDR) choices.add(const _Dir(1, -1));
         }
         if (choices.isEmpty) {
           choices.addAll(const [
-            _Dir(0, 1), // right
-            _Dir(0, -1), // left
-            _Dir(1, 0), // down
-            _Dir(-1, 0), // up
-            _Dir(1, 1), // diag down-right
-            _Dir(1, -1), // diag down-left
+            _Dir(0, 1),
+            _Dir(0, -1),
+            _Dir(1, 0),
+            _Dir(-1, 0),
+            _Dir(1, 1),
+            _Dir(1, -1),
           ]);
         }
         choices.shuffle(rnd);
 
         bool placed = false;
-        // Try up to some random positions per word
         int tries = 0;
         while (!placed && tries < 220) {
           tries++;
           final dir = choices[rnd.nextInt(choices.length)];
-      // Only allow right/left, down/up, diag down-right, diag down-left (no upward diagonals)
           final allowed = (dir.dr == 0 && dir.dc == 1) ||
-        (dir.dr == 0 && dir.dc == -1) ||
+              (dir.dr == 0 && dir.dc == -1) ||
               (dir.dr == 1 && dir.dc == 0) ||
-        (dir.dr == -1 && dir.dc == 0) ||
+              (dir.dr == -1 && dir.dc == 0) ||
               (dir.dr == 1 && dir.dc == 1) ||
               (dir.dr == 1 && dir.dc == -1);
           if (!allowed) continue;
-          // Compute valid start ranges based on direction
-          final rowMin = dir.dr == -1
-              ? (word.length - 1)
-              : 0;
-          final rowMax = dir.dr == 1
-              ? size - word.length
-              : size - 1;
-          final colMin = dir.dc == -1
-              ? (word.length - 1)
-              : 0;
-          final colMax = dir.dc == 1
-              ? size - word.length
-              : size - 1;
+          final rowMin = dir.dr == -1 ? (word.length - 1) : 0;
+          final rowMax = dir.dr == 1 ? size - word.length : size - 1;
+          final colMin = dir.dc == -1 ? (word.length - 1) : 0;
+          final colMax = dir.dc == 1 ? size - word.length : size - 1;
           if (rowMax < rowMin || colMax < colMin) continue;
           final row = rowMin + rnd.nextInt(rowMax - rowMin + 1);
           final col = colMin + rnd.nextInt(colMax - colMin + 1);
@@ -431,14 +373,12 @@ class _GameScreenState extends State<GameScreen> {
       }
 
       if (!failed) {
-        // Enforce a more lenient mix: at least 2 horizontal, 2 vertical, 1 diagonal total
         final placedDiagTotal2 = placedDiagDR + placedDiagDL;
         final placedHoriz2 = placedRight + placedLeft;
         final placedVert2 = placedDown + placedUp;
         if (!(placedHoriz2 >= 2 && placedVert2 >= 2 && placedDiagTotal2 >= 1)) {
           continue;
         }
-        // Fill empties with random letters
         for (int r = 0; r < size; r++) {
           for (int c = 0; c < size; c++) {
             if (grid[r][c].isEmpty) {
@@ -449,13 +389,11 @@ class _GameScreenState extends State<GameScreen> {
         return _Puzzle(grid: grid, words: sorted);
       }
     }
-    // Unable to place all words within the attempt budget
     return null;
   }
 
   _Puzzle? _generateSimplePuzzle(int size, List<String> words) {
     final rnd = Random();
-    // Sort longest first for higher placement success
     final sorted = List<String>.from(words.map((w) => w.toUpperCase()))
       ..sort((a, b) => b.length.compareTo(a.length));
 
@@ -470,14 +408,13 @@ class _GameScreenState extends State<GameScreen> {
       bool failed = false;
 
       for (final word in sorted) {
-        // Try all directions without constraints
         final choices = const [
-          _Dir(0, 1), // right
-          _Dir(0, -1), // left
-          _Dir(1, 0), // down
-          _Dir(-1, 0), // up
-          _Dir(1, 1), // diag down-right
-          _Dir(1, -1), // diag down-left
+          _Dir(0, 1),
+          _Dir(0, -1),
+          _Dir(1, 0),
+          _Dir(-1, 0),
+          _Dir(1, 1),
+          _Dir(1, -1),
         ];
         choices.shuffle(rnd);
 
@@ -486,18 +423,13 @@ class _GameScreenState extends State<GameScreen> {
         while (!placed && tries < 150) {
           tries++;
           final dir = choices[rnd.nextInt(choices.length)];
-          
-          // Compute valid start ranges based on direction
           final rowMin = dir.dr == -1 ? (word.length - 1) : 0;
           final rowMax = dir.dr == 1 ? size - word.length : size - 1;
           final colMin = dir.dc == -1 ? (word.length - 1) : 0;
           final colMax = dir.dc == 1 ? size - word.length : size - 1;
-          
           if (rowMax < rowMin || colMax < colMin) continue;
-          
           final row = rowMin + rnd.nextInt(rowMax - rowMin + 1);
           final col = colMin + rnd.nextInt(colMax - colMin + 1);
-          
           if (_canPlace(grid, row, col, dir, word)) {
             _place(grid, row, col, dir, word);
             placed = true;
@@ -510,7 +442,6 @@ class _GameScreenState extends State<GameScreen> {
       }
 
       if (!failed) {
-        // Fill empties with random letters
         for (int r = 0; r < size; r++) {
           for (int c = 0; c < size; c++) {
             if (grid[r][c].isEmpty) {
@@ -521,7 +452,6 @@ class _GameScreenState extends State<GameScreen> {
         return _Puzzle(grid: grid, words: sorted);
       }
     }
-    // Unable to place all words within the attempt budget
     return null;
   }
 
@@ -559,7 +489,6 @@ class _GameScreenState extends State<GameScreen> {
     }
   }
 
-  // Confetti method inside State to use setState safely
   void _spawnConfetti() {
     final rand = Random();
     final colors = [
@@ -600,119 +529,77 @@ class _GameScreenState extends State<GameScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final surface = Theme.of(context).colorScheme.surface;
     final onSurface = Theme.of(context).colorScheme.onSurface;
     final outline = Theme.of(context).colorScheme.outline;
+    final width = MediaQuery.of(context).size.width;
+    final isWide = width >= 900; // tablet breakpoint
 
-    return Scaffold(
+  return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pop(),
+        leading: AnimatedRotation(
+          duration: const Duration(milliseconds: 300),
+          turns: 0.0, // Can animate on press if needed
+          child: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
         ),
-        title: const Text('Bolly Word Grid'),
+        title: _GoldenTicket(score: score),
         centerTitle: true,
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8.0),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.star, color: Colors.amber[700]),
-                const SizedBox(width: 4),
-                Text(
-                  '$score',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(width: 8),
-                Builder(
-                  builder: (context) {
-                    final settings = context.watch<FeedbackSettings>();
-                    final canUseHints = settings.hintsEnabled && score >= 20 && _sel != null;
-                    return Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        AnimatedContainer(
-                          duration: const Duration(milliseconds: 300),
-                          decoration: canUseHints
-                              ? const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Color(0xFFB388FF), // purple glow
-                                      blurRadius: 16,
-                                      spreadRadius: 1,
-                                    ),
-                                    BoxShadow(
-                                      color: Color(0xFF8E24AA),
-                                      blurRadius: 24,
-                                      spreadRadius: 2,
-                                    ),
-                                  ],
-                                )
-                              : null,
-                          child: IconButton(
-                            tooltip: canUseHints
-                                ? 'Hint (-15 points)'
-                                : 'Hints unlock at 20 points',
-                            onPressed: !canUseHints
-                                ? null
-                                : () {
-                                    if (_sel == null) return;
-                                    if (score < 15) return; // need enough points
-                                    final sc = _sel!;
-                                    final remaining = sc.remainingWords;
-                                    if (remaining.isEmpty) return;
-                                    final list = remaining.toList()..shuffle();
-                                    final word = list.first;
-                                    final start = sc.findWordStart(word);
-                                    if (start != null) {
-                                      setState(() => score -= 15);
-                                      sc.showHintAt(start, durationMs: 1000);
-                                    }
-                                  },
-                            icon: const Icon(Icons.help_outline),
-                            iconSize: 22,
-                            padding: const EdgeInsets.all(4),
-                            constraints: const BoxConstraints(
-                              minWidth: 40,
-                              minHeight: 40,
-                            ),
-                            color: canUseHints ? Colors.white : Colors.white70,
-                          ),
-                        ),
-                        AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 200),
-                          child: canUseHints
-                              ? const Padding(
-                                  padding: EdgeInsets.only(top: 2),
-                                  child: Text(
-                                    'Hint 15 points',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                )
-                              : const SizedBox.shrink(),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ],
-            ),
+          Builder(
+            builder: (context) {
+              final settings = context.watch<FeedbackSettings>();
+              final canUseHints = settings.hintsEnabled && score >= 20 && _sel != null;
+              return FloatingActionButton.small(
+                onPressed: !canUseHints
+                    ? null
+                    : () {
+                        if (_sel == null) return;
+                        if (score < 15) return;
+                        final sc = _sel!;
+                        final remaining = sc.remainingWords;
+                        if (remaining.isEmpty) return;
+                        final list = remaining.toList()..shuffle();
+                        final word = list.first;
+                        final start = sc.findWordStart(word);
+                        if (start != null) {
+                          setState(() => score -= 15);
+                          sc.showHintAt(start, durationMs: 1000);
+                        }
+                      },
+                tooltip: canUseHints
+                    ? 'Hint (-15 tickets)'
+                    : 'Hints unlock at 20 tickets',
+                child: const Icon(Icons.question_mark),
+                backgroundColor: canUseHints ? Colors.amber : Colors.grey,
+              );
+            },
           ),
         ],
-  toolbarHeight: 68,
+        toolbarHeight: isWide ? 76 : 68,
       ),
       body: PopScope(
         canPop: false,
         child: Column(
           children: [
+            // Theme name bar
+            Container(
+              width: double.infinity,
+              color: Theme.of(context).colorScheme.primaryContainer,
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+              child: Text(
+                _themeTitle.isEmpty ? 'Bolly Word Grid' : _themeTitle,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
             // Key box with chips
             Container(
               width: double.infinity,
@@ -721,26 +608,13 @@ class _GameScreenState extends State<GameScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Text(
-                    _themeTitle.isEmpty ? 'Loading…' : _themeTitle,
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF6A1B9A),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
                   Wrap(
                     alignment: WrapAlignment.center,
                     spacing: 6,
                     runSpacing: 2,
                     children: _clues.map((clue) {
                       final sc = _sel;
-                      final isFound =
-                          sc != null &&
-                          sc.found.any(
-                            (f) => f.word == clue.answer.toUpperCase(),
-                          );
+                      final isFound = sc != null && sc.found.any((f) => f.word == clue.answer.toUpperCase());
                       final color = sc?.wordColors[clue.answer.toUpperCase()];
                       return AnimatedContainer(
                         duration: const Duration(milliseconds: 220),
@@ -758,34 +632,21 @@ class _GameScreenState extends State<GameScreen> {
                           boxShadow: isFound
                               ? [
                                   BoxShadow(
-                                    color: (color ?? Colors.black).withValues(
-                                      alpha: 0.3,
-                                    ),
+                                    color: (color ?? Colors.black).withValues(alpha: 0.3),
                                     blurRadius: 8,
                                     spreadRadius: 0,
                                   ),
                                 ]
                               : null,
                         ),
-                        child: Stack(
-                          children: [
-                            // Simple left->right strike animation by clipping text width
-                            AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 220),
-                              child: Text(
-                                clue.label,
-                                key: ValueKey(isFound),
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: isFound ? Colors.white : onSurface,
-                                  decoration: isFound
-                                      ? TextDecoration.lineThrough
-                                      : TextDecoration.none,
-                                ),
-                              ),
-                            ),
-                          ],
+                        child: Text(
+                          clue.label,
+                          style: TextStyle(
+                            fontSize: (isWide ? 14 : 11) * 1.15, // +15%
+                            fontWeight: FontWeight.w700,
+                            color: isFound ? Colors.white : onSurface,
+                            decoration: isFound ? TextDecoration.lineThrough : TextDecoration.none,
+                          ),
                         ),
                       );
                     }).toList(),
@@ -793,10 +654,10 @@ class _GameScreenState extends State<GameScreen> {
                 ],
               ),
             ),
-            // Compact film reel preview with individual cells for each letter
+            // Selection preview
             if (_sel != null && _sel!.hasActive && _sel!.activeString.isNotEmpty)
               Padding(
-                padding: const EdgeInsets.only(top: 6, bottom: 3), // Reduced by 20%
+                padding: const EdgeInsets.only(top: 6, bottom: 3),
                 child: Center(
                   child: AnimatedScale(
                     duration: const Duration(milliseconds: 120),
@@ -806,7 +667,7 @@ class _GameScreenState extends State<GameScreen> {
                       duration: const Duration(milliseconds: 120),
                       opacity: 1.0,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3), // Reduced by 20%
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                         decoration: BoxDecoration(
                           color: const Color(0xFF2C2C2E),
                           borderRadius: BorderRadius.circular(8),
@@ -822,10 +683,9 @@ class _GameScreenState extends State<GameScreen> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            // Left film reel edge
                             Container(
-                              width: 10, // Reduced by 20%
-                              height: 29, // Reduced by 20%
+                              width: 10,
+                              height: 29,
                               decoration: BoxDecoration(
                                 color: const Color(0xFF1C1C1E),
                                 borderRadius: const BorderRadius.horizontal(left: Radius.circular(4)),
@@ -833,18 +693,17 @@ class _GameScreenState extends State<GameScreen> {
                               ),
                               child: Center(
                                 child: Container(
-                                  width: 1.2, // Reduced by 20%
-                                  height: 19, // Reduced by 20%
+                                  width: 1.2,
+                                  height: 19,
                                   color: Colors.white24,
                                 ),
                               ),
                             ),
-                            // Letter cells
                             Row(
                               children: _sel!.activeString.split('').map((letter) {
                                 return Container(
-                                  width: 22, // Reduced by 20%
-                                  height: 29, // Reduced by 20%
+                                  width: 22,
+                                  height: 29,
                                   margin: const EdgeInsets.symmetric(horizontal: 1),
                                   decoration: BoxDecoration(
                                     color: _sel!.activeColor,
@@ -859,7 +718,7 @@ class _GameScreenState extends State<GameScreen> {
                                     child: Text(
                                       letter,
                                       style: const TextStyle(
-                                        fontSize: 14, // Reduced by 20%
+                                        fontSize: 14,
                                         fontWeight: FontWeight.w800,
                                         color: Colors.white,
                                         shadows: [
@@ -875,10 +734,9 @@ class _GameScreenState extends State<GameScreen> {
                                 );
                               }).toList(),
                             ),
-                            // Right film reel edge
                             Container(
-                              width: 10, // Reduced by 20%
-                              height: 29, // Reduced by 20%
+                              width: 10,
+                              height: 29,
                               decoration: BoxDecoration(
                                 color: const Color(0xFF1C1C1E),
                                 borderRadius: const BorderRadius.horizontal(right: Radius.circular(4)),
@@ -886,8 +744,8 @@ class _GameScreenState extends State<GameScreen> {
                               ),
                               child: Center(
                                 child: Container(
-                                  width: 1.2, // Reduced by 20%
-                                  height: 19, // Reduced by 20%
+                                  width: 1.2,
+                                  height: 19,
                                   color: Colors.white24,
                                 ),
                               ),
@@ -900,14 +758,14 @@ class _GameScreenState extends State<GameScreen> {
                 ),
               )
             else
-              const SizedBox(height: 35), // Reduced by 20%
+              const SizedBox(height: 35),
             const SizedBox(height: 8),
             Expanded(
               child: Center(
                 child: AspectRatio(
                   aspectRatio: 1,
                   child: LayoutBuilder(
-                    builder: (context, constraints) {
+                    builder: (context, inner) {
                       if (_sel == null || grid == null) {
                         return const Center(child: CircularProgressIndicator());
                       }
@@ -917,151 +775,88 @@ class _GameScreenState extends State<GameScreen> {
                           return Stack(
                             fit: StackFit.expand,
                             children: [
-                              // Background gradient behind grid card
-                              Container(
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                    colors: isDark
-                                        ? const [
-                                            Color(0xFF140B1B),
-                                            Color(0xFF0E0E12),
-                                          ]
-                                        : const [
-                                            Color(0xFFFFF7FB),
-                                            Color(0xFFF5F5F7),
-                                          ],
-                                  ),
-                                ),
-                              ),
-                              // Grid card with painter under letters (letters remain readable above)
                               Center(
                                 child: Container(
                                   margin: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: surface,
-                                    borderRadius: BorderRadius.circular(18),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withValues(
-                                          alpha: 0.06,
-                                        ),
-                                        blurRadius: 16,
-                                        offset: const Offset(0, 6),
-                                      ),
-                                    ],
-                                  ),
+                                      decoration: const BoxDecoration(),
                                   clipBehavior: Clip.none,
                                   child: LayoutBuilder(
-                                    builder: (context, inner) {
+                                    builder: (context, inner2) {
                                       return GestureDetector(
-                                        onPanStart: (d) =>
-                                            _onGridPanStart(d, inner),
-                                        onPanUpdate: (d) =>
-                                            _onGridPanUpdate(d, inner),
+                                        onPanStart: (d) => _onGridPanStart(d, inner2),
+                                        onPanUpdate: (d) => _onGridPanUpdate(d, inner2),
                                         onPanEnd: _onPanEnd,
                                         child: Stack(
                                           fit: StackFit.expand,
-                                          clipBehavior: Clip
-                                              .none, // Allow painter to draw outside bounds (e.g., for shadows)
+                                          clipBehavior: Clip.none,
                                           children: [
-                                            // Film reel painter (under letters)
                                             IgnorePointer(
                                               child: RepaintBoundary(
                                                 child: CustomPaint(
                                                   painter: FilmReelPainter(
-                                                    cellSize:
-                                                        inner.maxWidth /
-                                                        gridSize,
+                                                    cellSize: inner2.maxWidth / gridSize,
                                                     found: _sel!.found,
-                                                    activePath:
-                                                        _sel!.activePath,
-                                                    activeColor:
-                                                        _sel!.activeColor,
+                                                    activePath: _sel!.activePath,
+                                                    activeColor: _sel!.activeColor,
                                                     surfaceColor: surface,
                                                     debug: false,
                                                     repaint: Listenable.merge([
                                                       _sel!,
-                                                      ..._sel!.found.map(
-                                                        (fp) => fp.progress,
-                                                      ),
+                                                      ..._sel!.found.map((fp) => fp.progress),
                                                     ]),
                                                   ),
                                                 ),
                                               ),
                                             ),
-                                            // Letters grid
                                             RepaintBoundary(
                                               child: GridView.builder(
-                                                physics:
-                                                    const NeverScrollableScrollPhysics(),
+                                                physics: const NeverScrollableScrollPhysics(),
                                                 itemCount: gridSize * gridSize,
-                                                gridDelegate:
-                                                    const SliverGridDelegateWithFixedCrossAxisCount(
-                                                      crossAxisCount: gridSize,
-                                                    ),
+                                                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                                  crossAxisCount: gridSize,
+                                                ),
                                                 itemBuilder: (context, index) {
                                                   final row = index ~/ gridSize;
                                                   final col = index % gridSize;
                                                   final sc = _sel!;
-                                                  final cellOffset = Offset(
-                                                    row.toDouble(),
-                                                    col.toDouble(),
-                                                  );
-                                                  final inSelected = sc
-                                                      .activePath
-                                                      .contains(cellOffset);
-                                                  final inFound =
-                                                      _isInFoundPaths(
-                                                        cellOffset,
-                                                        sc,
-                                                      );
-                                                  // Responsive font size based on inner width
-                                                  final tile =
-                                                      inner.maxWidth / gridSize;
-                                                  final fontSize = tile * 0.55;
+                                                  final cellOffset = Offset(row.toDouble(), col.toDouble());
+                                                  final inSelected = sc.activePath.contains(cellOffset);
+                                                  final inFound = _isInFoundPaths(cellOffset, sc);
+                                                  final tile = inner2.maxWidth / gridSize;
+                                                  final fontSize = ((tile * 0.55).clamp(14.0, isWide ? 48.0 : 36.0)) * 1.0;
                                                   return AnimatedScale(
-                                                    duration: const Duration(
-                                                      milliseconds: 100,
-                                                    ),
-                                                    scale: inSelected
-                                                        ? 1.08
-                                                        : 1.0,
+                                                    duration: const Duration(milliseconds: 100),
+                                                    scale: inSelected ? 1.08 : 1.0,
                                                     child: Container(
-                                                      margin:
-                                                          const EdgeInsets.all(
-                                                            2.5,
-                                                          ),
+                                                      margin: const EdgeInsets.all(2.5),
                                                       decoration: BoxDecoration(
-                                                        color:
-                                                            Colors.transparent,
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              inSelected ||
-                                                                      inFound
-                                                                  ? 10
-                                                                  : 8,
-                                                            ),
+                                                        color: Colors.transparent,
+                                                        borderRadius: BorderRadius.circular(inSelected || inFound ? 10 : 8),
                                                       ),
                                                       child: Center(
                                                         child: Text(
                                                           grid![row][col],
                                                           style: TextStyle(
                                                             fontSize: fontSize,
-                                                            fontWeight:
-                                                                FontWeight.normal,
-                                                            color:
-                                                                (inSelected ||
-                                                                    inFound)
-                                                                ? Colors.white
-                                                                : onSurface,
+                                                            fontWeight: FontWeight.normal,
+                                                            color: (inSelected || inFound) ? Colors.white : onSurface,
                                                           ),
                                                         ),
                                                       ),
                                                     ),
                                                   );
                                                 },
+                                              ),
+                                            ),
+                                            // Grid overlay with horizontal and vertical lines
+                                            RepaintBoundary(
+                                              child: CustomPaint(
+                                                painter: _GridPainter(
+                                                  gridSize: gridSize,
+                                                  cellSize: inner2.maxWidth / gridSize,
+                                                  lineColor: Colors.grey.withOpacity(0.4),
+                                                  lineWidth: 1.0,
+                                                ),
                                               ),
                                             ),
                                           ],
@@ -1071,12 +866,7 @@ class _GameScreenState extends State<GameScreen> {
                                   ),
                                 ),
                               ),
-                              // ...existing code...
-                              // Confetti overlay
-                              _showConfetti
-                                  ? _ConfettiLayer(dots: _confetti)
-                                  : const SizedBox.shrink(),
-                              // Win-state overlay with Play again button
+                              _showConfetti ? _ConfettiLayer(dots: _confetti) : const SizedBox.shrink(),
                               if (_sel?.isComplete == true)
                                 Positioned.fill(
                                   child: Container(
@@ -1097,9 +887,7 @@ class _GameScreenState extends State<GameScreen> {
                                         FilledButton.icon(
                                           onPressed: _startingNewPuzzle ? null : _playAgain,
                                           icon: const Icon(Icons.refresh),
-                                          label: Text(
-                                            _startingNewPuzzle ? 'Loading…' : 'Play again',
-                                          ),
+                                          label: Text(_startingNewPuzzle ? 'Loading…' : 'Play again'),
                                           style: FilledButton.styleFrom(
                                             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                                             textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
@@ -1128,7 +916,56 @@ class _GameScreenState extends State<GameScreen> {
   }
 }
 
-// A simple class to hold confetti particle state
+class _GridPainter extends CustomPainter {
+  final int gridSize;
+  final double cellSize;
+  final Color lineColor;
+  final double lineWidth;
+
+  _GridPainter({
+    required this.gridSize,
+    required this.cellSize,
+    required this.lineColor,
+    required this.lineWidth,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = lineColor
+      ..strokeWidth = lineWidth
+      ..style = PaintingStyle.stroke;
+
+    // Draw vertical lines
+    for (int i = 0; i <= gridSize; i++) {
+      final x = i * cellSize;
+      canvas.drawLine(
+        Offset(x, 0),
+        Offset(x, size.height),
+        paint,
+      );
+    }
+
+    // Draw horizontal lines
+    for (int i = 0; i <= gridSize; i++) {
+      final y = i * cellSize;
+      canvas.drawLine(
+        Offset(0, y),
+        Offset(size.width, y),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _GridPainter oldDelegate) {
+    return oldDelegate.gridSize != gridSize ||
+           oldDelegate.cellSize != cellSize ||
+           oldDelegate.lineColor != lineColor ||
+           oldDelegate.lineWidth != lineWidth;
+  }
+}
+
 class _ConfettiDot {
   final Offset position;
   final Offset velocity;
@@ -1173,6 +1010,63 @@ class _ConfettiLayer extends StatelessWidget {
                 ),
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GoldenTicket extends StatelessWidget {
+  const _GoldenTicket({required this.score});
+  final int score;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFFD700), Color(0xFFFFA500), Color(0xFFFFD700)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: const Color(0xFFFFD700), width: 2),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '$score',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+              shadows: [
+                Shadow(
+                  offset: Offset(1, 1),
+                  blurRadius: 2,
+                  color: Colors.white.withOpacity(0.5),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          const Text(
+            'tickets',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black,
+            ),
+          ),
         ],
       ),
     );

@@ -10,8 +10,13 @@ import 'services/achievements_service.dart';
 import 'screens/welcome_screen.dart' as welcome;
 import 'screens/game_screen.dart' as game;
 import 'screens/options_screen.dart' as options;
+import 'screens/splash_screen.dart' as splash;
+import 'screens/boot_screen.dart' as boot;
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  FlutterNativeSplash.preserve(widgetsBinding: WidgetsBinding.instance);
   runApp(const BollyWordGridApp());
 }
 
@@ -84,7 +89,9 @@ class BollyWordGridApp extends StatelessWidget {
             darkTheme: darkTheme,
             initialRoute: '/',
             routes: {
-              '/': (context) => welcome.WelcomeScreen(),
+              '/': (context) => const boot.BootScreen(),
+              '/splash': (context) => splash.SplashScreen(),
+              '/welcome': (context) => welcome.WelcomeScreen(),
               '/game': (context) => game.GameScreen(),
               '/options': (context) => const options.OptionsScreen(),
             },

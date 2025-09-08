@@ -40,14 +40,31 @@ class _OptionsScreenState extends State<OptionsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final settings = context.watch<FeedbackSettings>();
+    final isDark = settings.theme == AppTheme.kashyap;
     return Scaffold(
       appBar: AppBar(title: const Text('Options')),
       body: !_loaded
           ? const Center(child: CircularProgressIndicator())
           : SafeArea(
-              child: ListView(
-                padding: const EdgeInsets.all(16),
+              child: Stack(
+                fit: StackFit.expand,
                 children: [
+                  // Themed background
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: Image.asset(
+                        isDark ? 'assets/Options_Dark.png' : 'assets/Options_Light.png',
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                  Column(
+                    children: [
+                      Expanded(
+                        child: ListView(
+                          padding: const EdgeInsets.all(16),
+                          children: [
                   // Sound section
                   BwSectionCard(
                     title: 'Sound',
@@ -65,6 +82,20 @@ class _OptionsScreenState extends State<OptionsScreen> {
                           },
                           iconOn: Icons.volume_up,
                           iconOff: Icons.volume_off_outlined,
+                        ),
+                        const Divider(height: 0),
+                        _SettingTile(
+                          key: const Key('hapticsSwitch'),
+                          title: 'Haptics',
+                          value: _repo.hapticsEnabled,
+                          onChanged: (v) {
+                            setState(() => _repo.setHaptics(v));
+                            // propagate to app-wide settings
+                            context.read<FeedbackSettings>().setHapticsEnabled(v);
+                            _saveSnack();
+                          },
+                          iconOn: Icons.vibration,
+                          iconOff: Icons.vibration_outlined,
                         ),
                         const Divider(height: 0),
                         _SettingTile.disabled(
@@ -126,7 +157,7 @@ class _OptionsScreenState extends State<OptionsScreen> {
                         _SettingTile(
                           key: const Key('hintsSwitch'),
                           title: 'Hints',
-                          subtitle: _repo.hintsEnabled ? 'Each hint costs 15 points' : null,
+                          subtitle: _repo.hintsEnabled ? 'Each hint costs 15 tickets' : null,
                           value: _repo.hintsEnabled,
                           onChanged: (v) {
                             setState(() => _repo.setHints(v));
@@ -149,7 +180,21 @@ class _OptionsScreenState extends State<OptionsScreen> {
                     ),
                   ),
 
-                  // Bottom helper text removed per request
+                          // Bottom helper text removed per request
+                          ],
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Text(
+                          'v1.0 • Copyright 4spire.in',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Colors.white70,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),

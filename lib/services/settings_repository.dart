@@ -6,11 +6,13 @@ class SettingsRepository {
   static const _kSound = 'soundEnabled';
   static const _kMusic = 'musicEnabled';
   static const _kHints = 'hintsEnabled';
+  static const _kHaptics = 'hapticsEnabled';
   static const _kTheme = 'selectedThemeKey';
 
   bool soundEnabled = true;
   bool musicEnabled = true; // but UI row disabled
   bool hintsEnabled = true;
+  bool hapticsEnabled = true;
   AppTheme theme = AppTheme.hirani;
 
   Timer? _debounce;
@@ -20,6 +22,7 @@ class SettingsRepository {
     soundEnabled = sp.getBool(_kSound) ?? true;
     musicEnabled = sp.getBool(_kMusic) ?? true;
     hintsEnabled = sp.getBool(_kHints) ?? true;
+    hapticsEnabled = sp.getBool(_kHaptics) ?? true;
     final themeKey = sp.getString(_kTheme) ?? 'Hirani';
     theme = _parseTheme(themeKey);
   }
@@ -28,6 +31,7 @@ class SettingsRepository {
     soundEnabled = true;
     musicEnabled = true;
     hintsEnabled = true;
+    hapticsEnabled = true;
     theme = AppTheme.hirani;
     await _saveImmediate();
   }
@@ -47,6 +51,11 @@ class SettingsRepository {
     _debouncedSave();
   }
 
+  void setHaptics(bool v) {
+    hapticsEnabled = v;
+    _debouncedSave();
+  }
+
   void setTheme(AppTheme v) {
     theme = v;
     _debouncedSave();
@@ -62,6 +71,7 @@ class SettingsRepository {
     await sp.setBool(_kSound, soundEnabled);
     await sp.setBool(_kMusic, musicEnabled);
     await sp.setBool(_kHints, hintsEnabled);
+    await sp.setBool(_kHaptics, hapticsEnabled);
     await sp.setString(_kTheme, _themeKey(theme));
   }
 
