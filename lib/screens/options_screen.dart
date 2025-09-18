@@ -184,15 +184,6 @@ class _OptionsScreenState extends State<OptionsScreen> {
                           ],
                         ),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: Text(
-                          'v1.0 • Copyright 4spire.in',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Colors.white70,
-                              ),
-                        ),
-                      ),
                     ],
                   ),
                 ],

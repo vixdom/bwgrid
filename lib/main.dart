@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import 'constants/app_themes.dart';
 import 'models/feedback_settings.dart';
@@ -14,9 +15,10 @@ import 'screens/splash_screen.dart' as splash;
 import 'screens/boot_screen.dart' as boot;
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: WidgetsBinding.instance);
+  await MobileAds.instance.initialize();
   runApp(const BollyWordGridApp());
 }
 

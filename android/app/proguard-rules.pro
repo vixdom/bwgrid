@@ -55,14 +55,5 @@
 -keep class * extends io.flutter.plugin.common.BasicMessageChannel { *; }
 
 # Keep Play Core classes for Flutter deferred components
--keep class com.google.android.play.core.splitcompat.SplitCompatApplication { *; }
--keep class com.google.android.play.core.splitinstall.SplitInstallException { *; }
--keep class com.google.android.play.core.splitinstall.SplitInstallManager { *; }
--keep class com.google.android.play.core.splitinstall.SplitInstallManagerFactory { *; }
--keep class com.google.android.play.core.splitinstall.SplitInstallRequest { *; }
--keep class com.google.android.play.core.splitinstall.SplitInstallRequest$Builder { *; }
--keep class com.google.android.play.core.splitinstall.SplitInstallSessionState { *; }
--keep class com.google.android.play.core.splitinstall.SplitInstallStateUpdatedListener { *; }
--keep class com.google.android.play.core.tasks.OnFailureListener { *; }
--keep class com.google.android.play.core.tasks.OnSuccessListener { *; }
--keep class com.google.android.play.core.tasks.Task { *; }
+
+# Keep all Play Core classes and suppress warnings for missing ones

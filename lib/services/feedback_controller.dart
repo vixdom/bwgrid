@@ -351,9 +351,10 @@ class FeedbackController with ChangeNotifier {
       final session = await AudioSession.instance;
       debugPrint('Audio session instance obtained');
       
-      // Use playback category for better iOS compatibility with sound effects
+      // iOS: Use ambient so sounds respect the Silent switch (mute/vibrate)
       final config = AudioSessionConfiguration(
-        avAudioSessionCategory: AVAudioSessionCategory.playback,
+        avAudioSessionCategory: AVAudioSessionCategory.ambient,
+        // ambient mixes by default; keep mixWithOthers to be explicit
         avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.mixWithOthers,
         avAudioSessionMode: AVAudioSessionMode.defaultMode,
         androidAudioAttributes: const AndroidAudioAttributes(

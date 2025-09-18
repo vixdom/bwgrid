@@ -1,0 +1,9 @@
+# app-ads.txt (IAB Tech Lab spec)
+# Host this exact file at: https://<your-domain>/.well-known/app-ads.txt
+# Learn more: https://iabtechlab.com/app-ads-txt/
+
+# AdMob / Google
+# Replace with your official app/site domain when hosting
+# Format: domain, publisher ID, relationship, certification authority ID (optional)
+
+google.com, pub-4369020643957506, DIRECT, f08c47fec0942fa0

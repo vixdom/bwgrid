@@ -1,8 +1,11 @@
 import 'dart:math';
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:provider/provider.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+import '../ads/ads_config.dart';
 import '../services/game_controller.dart';
 import '../controllers/selection_controller.dart';
 import '../widgets/film_reel_painter.dart';
@@ -101,11 +104,30 @@ class _GameScreenState extends State<GameScreen> {
   String _themeTitle = '';
   List<Clue> _clues = const [];
   bool _startingNewPuzzle = false;
+  BannerAd? _bannerAd;
+  bool _isBannerAdLoaded = false;
 
   @override
   void initState() {
     super.initState();
     unawaited(_loadPuzzle());
+    // Load banner ad on both Android and iOS
+    final adUnitId = Platform.isAndroid ? AdsConfig.androidBanner : AdsConfig.iosBanner;
+    _bannerAd = BannerAd(
+      adUnitId: adUnitId,
+      size: AdSize.banner,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          if (!mounted) return;
+          setState(() => _isBannerAdLoaded = true);
+        },
+        onAdFailedToLoad: (ad, error) {
+          ad.dispose();
+        },
+      ),
+    );
+    _bannerAd!.load();
   }
 
   // Grid-local gesture mapping using inner constraints
@@ -909,10 +931,26 @@ class _GameScreenState extends State<GameScreen> {
                 ),
               ),
             ),
+            if (_isBannerAdLoaded && _bannerAd != null)
+              SafeArea(
+                top: false,
+                child: Container(
+                  alignment: Alignment.center,
+                  width: _bannerAd!.size.width.toDouble(),
+                  height: _bannerAd!.size.height.toDouble(),
+                  child: AdWidget(ad: _bannerAd!),
+                ),
+              ),
           ],
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _bannerAd?.dispose();
+    super.dispose();
   }
 }
 

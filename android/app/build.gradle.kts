@@ -33,8 +33,8 @@ android {
         applicationId = "com.moviemasala.wordsearch"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        versionCode = 8
-        versionName = "1.0.10"
+        versionCode = 9
+        versionName = "1.2.1"
         multiDexEnabled = true
     }
 
@@ -56,22 +56,16 @@ android {
         }
     }
 
+    packagingOptions {
+        jniLibs.keepDebugSymbols.add("**/*.so")
+    }
+
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
-            isMinifyEnabled = true
-            isShrinkResources = true
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Disable NDK debug symbols stripping
-            packagingOptions {
-                jniLibs.keepDebugSymbols.add("**/*.so")
-            }
-            ndk {
-                // Explicitly specify the ABI filters to include
-                abiFilters.clear()
-                abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a", "x86_64"))
-                debugSymbolLevel = "NONE"
-            }
         }
         debug {
             isDebuggable = true
@@ -87,9 +81,9 @@ dependencies {
     // If you need in-app updates or review, use:
     // implementation("com.google.android.play:app-update:2.1.0")
     // implementation("com.google.android.play:review:2.0.1")
-        // Provide Play Core classes only at compile time to satisfy Flutter deferred components references.
-        // This avoids packaging deprecated Play Core into the bundle (Play Console rejects it on targetSdk 34).
-        compileOnly("com.google.android.play:core:1.10.3")
+    // Play Core dependency removed for Play Store compliance. If you need in-app updates or reviews, use:
+    // implementation("com.google.android.play:app-update:2.1.0")
+    // implementation("com.google.android.play:review:2.0.1")
 }
 
 flutter {

@@ -2,7 +2,7 @@ name: bwgrid
 description: "An Indian movie themed word search game"
 publish_to: 'none'
 
-version: 1.0.1+1
+version: 1.2.1+1
 
 environment:
   sdk: ^3.8.1
@@ -19,6 +19,7 @@ dependencies:
   vibration: any
   simple_icons: any
   shared_preferences: any
+  google_mobile_ads: ^5.1.0
 
 dev_dependencies:
   flutter_test:

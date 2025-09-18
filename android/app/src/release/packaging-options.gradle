@@ -1,0 +1,6 @@
+android {
+    packagingOptions {
+        // Keep debug symbols to avoid stripDebugSymbols failures during AAB packaging
+        jniLibs.keepDebugSymbols += ["**/*.so"]
+    }
+}
