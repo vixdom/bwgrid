@@ -20,6 +20,12 @@ class GameScreen extends StatefulWidget {
 }
 
 class _GameScreenState extends State<GameScreen> {
+  // Optimized state management with ValueNotifiers to reduce rebuilds
+  late final ValueNotifier<int> _scoreNotifier;
+  late final ValueNotifier<bool> _hintUnlockedNotifier;
+  late final ValueNotifier<bool> _showConfettiNotifier;
+  late final ValueNotifier<SelectionController?> _selectionNotifier;
+  
   // Helper to verify word is present in grid in allowed directions
   bool _isWordInGrid(List<List<String>> grid, String word) {
     final n = grid.length;
@@ -110,6 +116,12 @@ class _GameScreenState extends State<GameScreen> {
   @override
   void initState() {
     super.initState();
+    // Initialize ValueNotifiers
+    _scoreNotifier = ValueNotifier<int>(0);
+    _hintUnlockedNotifier = ValueNotifier<bool>(false);
+    _showConfettiNotifier = ValueNotifier<bool>(false);
+    _selectionNotifier = ValueNotifier<SelectionController?>(null);
+    
     unawaited(_loadPuzzle());
     // Load banner ad on both Android and iOS
     final adUnitId = Platform.isAndroid ? AdsConfig.androidBanner : AdsConfig.iosBanner;
@@ -156,7 +168,8 @@ class _GameScreenState extends State<GameScreen> {
       if (_sel!.activePath.isEmpty || _sel!.activePath.last != currentCell) {
         final changed = _sel!.extendTo(currentCell);
         if (changed) {
-          setState(() {});
+          // Only update the selection notifier, avoid full widget rebuild
+          _selectionNotifier.value = _sel;
           final gameController = context.read<GameController>();
           unawaited(gameController.onNewCellSelected());
         }
@@ -169,13 +182,15 @@ class _GameScreenState extends State<GameScreen> {
     final prevLen = _sel?.activePath.length ?? 0;
     final found = _sel?.commitOrReset();
     final gc = context.read<GameController>();
-    setState(() {});
+    // Update selection notifier instead of setState
+    _selectionNotifier.value = _sel;
     
     if (found != null) {
-      setState(() => score += 10);
+      // Update score using ValueNotifier
+      _scoreNotifier.value += 10;
       await gc.onWordFound();
       if (!_hintUnlocked && score >= 20) {
-        _hintUnlocked = true;
+        _hintUnlockedNotifier.value = true;
         unawaited(gc.feedback.playClue());
       }
       // ignore: use_build_context_synchronously
@@ -201,9 +216,9 @@ class _GameScreenState extends State<GameScreen> {
     return false;
   }
 
-  // Score
-  int score = 0;
-  bool _hintUnlocked = false;
+  // Optimized getters using ValueNotifiers
+  int get score => _scoreNotifier.value;
+  bool get _hintUnlocked => _hintUnlockedNotifier.value;
 
   Future<void> _loadPuzzle() async {
     final dict = await ThemeDictionary.loadFromAsset(
@@ -234,6 +249,10 @@ class _GameScreenState extends State<GameScreen> {
       _clues = List<Clue>.from(chosen);
       grid = null;
       _sel = null;
+      // Reset game state via ValueNotifiers
+      _scoreNotifier.value = 0;
+      _hintUnlockedNotifier.value = false;
+      _selectionNotifier.value = null;
     });
 
     const int maxAttempts = 1000;
@@ -276,6 +295,8 @@ class _GameScreenState extends State<GameScreen> {
         gridSize: gridSize,
         targetWords: targetWords,
       );
+      // Update selection notifier
+      _selectionNotifier.value = _sel;
     });
   }
 
@@ -283,9 +304,11 @@ class _GameScreenState extends State<GameScreen> {
     if (_startingNewPuzzle) return;
     setState(() {
       _startingNewPuzzle = true;
-      score = 0;
-      _hintUnlocked = false;
     });
+    // Reset using ValueNotifiers
+    _scoreNotifier.value = 0;
+    _hintUnlockedNotifier.value = false;
+    
     await _loadPuzzle();
     if (!mounted) return;
     setState(() {
@@ -543,9 +566,9 @@ class _GameScreenState extends State<GameScreen> {
         rotation: rand.nextDouble() * 6.28,
       );
     });
-    setState(() => _showConfetti = true);
+    _showConfettiNotifier.value = true;
     Future.delayed(const Duration(milliseconds: 900), () {
-      if (mounted) setState(() => _showConfetti = false);
+      if (mounted) _showConfettiNotifier.value = false;
     });
   }
 
@@ -568,11 +591,15 @@ class _GameScreenState extends State<GameScreen> {
             onPressed: () => Navigator.of(context).pop(),
           ),
         ),
-        title: _GoldenTicket(score: score),
+        title: ValueListenableBuilder<int>(
+          valueListenable: _scoreNotifier,
+          builder: (context, score, child) => _GoldenTicket(score: score),
+        ),
         centerTitle: true,
         actions: [
-          Builder(
-            builder: (context) {
+          ValueListenableBuilder<int>(
+            valueListenable: _scoreNotifier,
+            builder: (context, score, child) {
               final settings = context.watch<FeedbackSettings>();
               final canUseHints = settings.hintsEnabled && score >= 20 && _sel != null;
               return FloatingActionButton.small(
@@ -588,7 +615,7 @@ class _GameScreenState extends State<GameScreen> {
                         final word = list.first;
                         final start = sc.findWordStart(word);
                         if (start != null) {
-                          setState(() => score -= 15);
+                          _scoreNotifier.value -= 15;
                           sc.showHintAt(start, durationMs: 1000);
                         }
                       },
@@ -791,9 +818,9 @@ class _GameScreenState extends State<GameScreen> {
                       if (_sel == null || grid == null) {
                         return const Center(child: CircularProgressIndicator());
                       }
-                      return AnimatedBuilder(
-                        animation: _sel!,
-                        builder: (context, _) {
+                      return ValueListenableBuilder(
+                        valueListenable: _selectionNotifier,
+                        builder: (context, _, __) {
                           return Stack(
                             fit: StackFit.expand,
                             children: [
@@ -950,6 +977,11 @@ class _GameScreenState extends State<GameScreen> {
   @override
   void dispose() {
     _bannerAd?.dispose();
+    // Dispose ValueNotifiers
+    _scoreNotifier.dispose();
+    _hintUnlockedNotifier.dispose(); 
+    _showConfettiNotifier.dispose();
+    _selectionNotifier.dispose();
     super.dispose();
   }
 }
