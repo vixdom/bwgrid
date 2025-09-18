@@ -4,6 +4,7 @@ import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:provider/provider.dart';
 import '../services/feedback_controller.dart';
 import '../services/achievements_service.dart';
+import '../services/asset_preloader.dart';
 
 class BootScreen extends StatefulWidget {
   const BootScreen({super.key});
@@ -21,15 +22,32 @@ class _BootScreenState extends State<BootScreen> {
 
   Future<void> _preloadAndGo() async {
     try {
-      // Pre-cache splash and welcome background to avoid white flashes
+      // Start comprehensive asset preloading early
+      final assetPreloader = AssetPreloader();
+      debugPrint('[Boot] Starting asset preloading...');
+      
+      // Start preloading critical assets (non-blocking)
+      final preloadFuture = assetPreloader.preloadCriticalAssets(context);
+      
+      // Quick preload of immediate splash assets for smooth transition
       final ctx = context;
-      debugPrint('[Boot] Precaching splash assets...');
-      await precacheImage(const AssetImage('assets/BollyWord Splash Screen.png'), ctx);
-      await precacheImage(const AssetImage('assets/BollyWord welcome screen gold.png'), ctx);
-    } catch (_) {}
-    // Ensure at least one frame shown before removing native splash
-    await Future.delayed(const Duration(milliseconds: 50));
-    FlutterNativeSplash.remove();
+      debugPrint('[Boot] Precaching immediate splash assets...');
+      await Future.wait([
+        precacheImage(const AssetImage('assets/BollyWord Splash Screen.png'), ctx),
+        precacheImage(const AssetImage('assets/BollyWord welcome screen gold.png'), ctx),
+      ].map((f) => f.catchError((_) {})));
+      
+      // Ensure at least one frame shown before removing native splash
+      await Future.delayed(const Duration(milliseconds: 50));
+      FlutterNativeSplash.remove();
+      
+      // Wait for critical asset preloading to complete before proceeding
+      await preloadFuture;
+      
+    } catch (e) {
+      debugPrint('[Boot] Error during preloading: $e');
+    }
+    
     if (!mounted) return;
 
     // Initialize app services
@@ -54,19 +72,14 @@ class _BootScreenState extends State<BootScreen> {
         await achievementsService.signIn();
       }
 
-      // Begin background preloading of gameplay-critical images
-      debugPrint('[Boot] Caching assets...');
-      try {
-        await Future.wait([
-          // Welcome BG already cached in Boot
-          precacheImage(const AssetImage('assets/images/screen_cropped.png'), context),
-          precacheImage(const AssetImage('assets/BollyWord welcome screen gold.png'), context),
-        ].map((f) => f.catchError((_) {})));
-      } catch (_) {}
+      // Start background preloading of non-critical assets
+      debugPrint('[Boot] Starting background asset preloading...');
+      final assetPreloader = AssetPreloader();
+      unawaited(assetPreloader.preloadNonCriticalAssets(context));
 
       debugPrint('[Boot] Almost ready...');
       // Small delay to ensure smooth transition
-      await Future.delayed(const Duration(milliseconds: 300));
+      await Future.delayed(const Duration(milliseconds: 200));
     } catch (e) {
       debugPrint('Error during app initialization: $e');
       // Continue anyway - don't let initialization errors block the app

@@ -8,6 +8,7 @@ import 'package:vibration/vibration.dart';
 import 'package:flutter/foundation.dart';
 
 import '../models/feedback_settings.dart';
+import 'asset_preloader.dart';
 
 /// FeedbackController manages short SFX and haptics with debounce and settings.
 /// Provide it via Provider and dispose on app shutdown.
@@ -48,6 +49,51 @@ class FeedbackController with ChangeNotifier {
   static const MethodChannel _audioChannel = MethodChannel('bwgrid/audio');
 
   FeedbackController(this.settings);
+
+  /// Optimized audio loading that uses preloaded assets when available
+  Future<Duration?> _loadAudioOptimized(AudioPlayer player, String wavFile, String mp3File) async {
+    final assetPreloader = AssetPreloader();
+    
+    // Try to use preloaded assets first for instant loading
+    final wavPath = _assetPath(wavFile);
+    final mp3Path = _assetPath(mp3File);
+    
+    AudioPlayer? preloadedPlayer = assetPreloader.getPreloadedAudioPlayer(wavPath);
+    if (preloadedPlayer != null) {
+      debugPrint('Using preloaded WAV audio: $wavPath');
+      // Copy the preloaded player's state to our player
+      try {
+        final duration = await player.setAsset(wavPath);
+        return duration;
+      } catch (e) {
+        debugPrint('Failed to use preloaded WAV, falling back: $e');
+      }
+    }
+    
+    preloadedPlayer = assetPreloader.getPreloadedAudioPlayer(mp3Path);
+    if (preloadedPlayer != null) {
+      debugPrint('Using preloaded MP3 audio: $mp3Path');
+      try {
+        final duration = await player.setAsset(mp3Path);
+        return duration;
+      } catch (e) {
+        debugPrint('Failed to use preloaded MP3, falling back: $e');
+      }
+    }
+    
+    // Fall back to normal loading if no preloaded assets available
+    try {
+      final duration = await player.setAsset(wavPath);
+      debugPrint('Loaded WAV audio normally: $wavPath');
+      return duration;
+    } catch (e) {
+      debugPrint('Failed to load WAV, trying MP3: $e');
+      final duration = await player.setAsset(mp3Path);
+      debugPrint('Loaded MP3 audio normally: $mp3Path');
+      return duration;
+    }
+  }
+  
   // Read-only exposure for UI/debug
   String get tickAssetName => _tickAssetName ?? 'unknown';
   String get foundAssetName => _foundAssetName ?? 'unknown';
@@ -75,22 +121,16 @@ class FeedbackController with ChangeNotifier {
     for (int attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         debugPrint('Initializing tick sound... (attempt $attempt/$maxRetries)');
-        // Try .wav first, then fall back to .mp3
-        try {
-          final d = await _tick.setAsset(_assetPath('select.wav'));
-          _tickReady = true;
-          _tickAssetName = 'select.wav';
-          _tickMs = d?.inMilliseconds;
-        } catch (e) {
-          debugPrint('Failed to load select.wav, trying .mp3: $e');
-          final d = await _tick.setAsset(_assetPath('select.mp3'));
-          _tickReady = true;
-          _tickAssetName = 'select.mp3';
-          _tickMs = d?.inMilliseconds;
-        }
+        
+        // Use optimized loading with preloaded assets
+        final d = await _loadAudioOptimized(_tick, 'select.wav', 'select.mp3');
+        
+        _tickReady = true;
+        _tickAssetName = d != null ? 'select (optimized)' : 'select';
+        _tickMs = d?.inMilliseconds;
         _tick.setVolume(settings.volume);
         _tickError = null;
-        debugPrint('Tick sound initialized successfully (asset: ${_tickAssetName!}, duration: ${_tickMs ?? -1}ms)');
+        debugPrint('Tick sound initialized successfully (duration: ${_tickMs ?? -1}ms)');
         notifyListeners();
         return; // Success, exit retry loop
       } catch (e) {
@@ -116,22 +156,16 @@ class FeedbackController with ChangeNotifier {
     for (int attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         debugPrint('Initializing word found sound... (attempt $attempt/$maxRetries)');
-        // Try .wav first, then fall back to .mp3
-        try {
-          final d = await _found.setAsset(_assetPath('word_found.wav'));
-          _foundReady = true;
-          _foundAssetName = 'word_found.wav';
-          _foundMs = d?.inMilliseconds;
-        } catch (e) {
-          debugPrint('Failed to load word_found.wav, trying .mp3: $e');
-          final d = await _found.setAsset(_assetPath('word_found.mp3'));
-          _foundReady = true;
-          _foundAssetName = 'word_found.mp3';
-          _foundMs = d?.inMilliseconds;
-        }
+        
+        // Use optimized loading with preloaded assets
+        final d = await _loadAudioOptimized(_found, 'word_found.wav', 'word_found.mp3');
+        
+        _foundReady = true;
+        _foundAssetName = d != null ? 'word_found (optimized)' : 'word_found';
+        _foundMs = d?.inMilliseconds;
         _found.setVolume(settings.volume);
         _foundError = null;
-        debugPrint('Word found sound initialized successfully (asset: ${_foundAssetName!}, duration: ${_foundMs ?? -1}ms)');
+        debugPrint('Word found sound initialized successfully (duration: ${_foundMs ?? -1}ms)');
         notifyListeners();
         return;
       } catch (e) {
@@ -156,22 +190,16 @@ class FeedbackController with ChangeNotifier {
     for (int attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         debugPrint('Initializing invalid sound... (attempt $attempt/$maxRetries)');
-        // Try .wav first, then fall back to .mp3
-        try {
-          final d = await _invalid.setAsset(_assetPath('invalid.wav'));
-          _invalidReady = true;
-          _invalidAssetName = 'invalid.wav';
-          _invalidMs = d?.inMilliseconds;
-        } catch (e) {
-          debugPrint('Failed to load invalid.wav, trying .mp3: $e');
-          final d = await _invalid.setAsset(_assetPath('invalid.mp3'));
-          _invalidReady = true;
-          _invalidAssetName = 'invalid.mp3';
-          _invalidMs = d?.inMilliseconds;
-        }
+        
+        // Use optimized loading with preloaded assets
+        final d = await _loadAudioOptimized(_invalid, 'invalid.wav', 'invalid.mp3');
+        
+        _invalidReady = true;
+        _invalidAssetName = d != null ? 'invalid (optimized)' : 'invalid';
+        _invalidMs = d?.inMilliseconds;
         _invalid.setVolume(settings.volume);
         _invalidError = null;
-        debugPrint('Invalid sound initialized successfully (asset: ${_invalidAssetName!}, duration: ${_invalidMs ?? -1}ms)');
+        debugPrint('Invalid sound initialized successfully (duration: ${_invalidMs ?? -1}ms)');
         notifyListeners();
         return;
       } catch (e) {
@@ -196,22 +224,16 @@ class FeedbackController with ChangeNotifier {
     for (int attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         debugPrint('Initializing fireworks sound... (attempt $attempt/$maxRetries)');
-        // Try .wav first, then fall back to .mp3
-        try {
-          final d = await _fireworks.setAsset(_assetPath('fireworks.wav'));
-          _fireworksReady = true;
-          _fireworksAssetName = 'fireworks.wav';
-          _fireworksMs = d?.inMilliseconds;
-        } catch (e) {
-          debugPrint('Failed to load fireworks.wav, trying .mp3: $e');
-          final d = await _fireworks.setAsset(_assetPath('fireworks.mp3'));
-          _fireworksReady = true;
-          _fireworksAssetName = 'fireworks.mp3';
-          _fireworksMs = d?.inMilliseconds;
-        }
+        
+        // Use optimized loading with preloaded assets
+        final d = await _loadAudioOptimized(_fireworks, 'fireworks.wav', 'fireworks.mp3');
+        
+        _fireworksReady = true;
+        _fireworksAssetName = d != null ? 'fireworks (optimized)' : 'fireworks';
+        _fireworksMs = d?.inMilliseconds;
         _fireworks.setVolume(settings.volume);
         _fireworksError = null;
-        debugPrint('Fireworks sound initialized successfully (asset: ${_fireworksAssetName!}, duration: ${_fireworksMs ?? -1}ms)');
+        debugPrint('Fireworks sound initialized successfully (duration: ${_fireworksMs ?? -1}ms)');
         notifyListeners();
         return;
       } catch (e) {
@@ -236,22 +258,16 @@ class FeedbackController with ChangeNotifier {
     for (int attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         debugPrint('Initializing clue sound... (attempt $attempt/$maxRetries)');
-        // Try .wav first, then fall back to .mp3
-        try {
-          final d = await _clue.setAsset(_assetPath('clue.wav'));
-          _clueReady = true;
-          _clueAssetName = 'clue.wav';
-          _clueMs = d?.inMilliseconds;
-        } catch (e) {
-          debugPrint('Failed to load clue.wav, trying .mp3: $e');
-          final d = await _clue.setAsset(_assetPath('clue.mp3'));
-          _clueReady = true;
-          _clueAssetName = 'clue.mp3';
-          _clueMs = d?.inMilliseconds;
-        }
+        
+        // Use optimized loading with preloaded assets
+        final d = await _loadAudioOptimized(_clue, 'clue.wav', 'clue.mp3');
+        
+        _clueReady = true;
+        _clueAssetName = d != null ? 'clue (optimized)' : 'clue';
+        _clueMs = d?.inMilliseconds;
         _clue.setVolume(settings.volume);
         _clueError = null;
-        debugPrint('Clue sound initialized successfully (asset: ${_clueAssetName!}, duration: ${_clueMs ?? -1}ms)');
+        debugPrint('Clue sound initialized successfully (duration: ${_clueMs ?? -1}ms)');
         notifyListeners();
         return;
       } catch (e) {
