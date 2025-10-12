@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../constants/app_themes.dart';
 import '../services/settings_repository.dart';
 import '../models/feedback_settings.dart';
+import '../services/feedback_controller.dart';
 
 class OptionsScreen extends StatefulWidget {
   const OptionsScreen({super.key});
@@ -14,17 +17,85 @@ class OptionsScreen extends StatefulWidget {
 class _OptionsScreenState extends State<OptionsScreen> {
   final _repo = SettingsRepository();
   bool _loaded = false;
+  BannerAd? _bannerAd;
+  bool _isAdLoaded = false;
 
   @override
   void initState() {
     super.initState();
     _init();
+    _loadBannerAd();
   }
 
   Future<void> _init() async {
     await _repo.load();
     if (!mounted) return;
     setState(() => _loaded = true);
+  }
+
+  Future<void> _resetAllProgress() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reset All Progress'),
+        content: const Text(
+          'This will erase all achievements, progress, and saved games. This action cannot be undone. Are you sure?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Reset'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      // Reset settings to defaults
+      final settings = context.read<FeedbackSettings>();
+      settings.soundEnabled = true;
+      settings.hapticsEnabled = true;
+      settings.hintsEnabled = true;
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('All progress has been reset')),
+        );
+      }
+    }
+  }
+
+  void _loadBannerAd() {
+    _bannerAd = BannerAd(
+      adUnitId: 'ca-app-pub-4369020643957506/1487020917',
+      size: AdSize.banner,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          if (!mounted) return;
+          setState(() => _isAdLoaded = true);
+        },
+        onAdFailedToLoad: (ad, error) {
+          ad.dispose();
+          if (!mounted) return;
+          setState(() => _isAdLoaded = false);
+        },
+      ),
+    );
+    _bannerAd!.load();
+  }
+
+  @override
+  void dispose() {
+    _bannerAd?.dispose();
+    super.dispose();
   }
 
   void _saveSnack() {
@@ -92,6 +163,13 @@ class _OptionsScreenState extends State<OptionsScreen> {
                             setState(() => _repo.setHaptics(v));
                             // propagate to app-wide settings
                             context.read<FeedbackSettings>().setHapticsEnabled(v);
+                            // Gentle acknowledgement only when enabling
+                            if (v) {
+                              // Fire-and-forget; FeedbackController honors current settings
+                              unawaited(
+                                context.read<FeedbackController>().hapticLight(),
+                              );
+                            }
                             _saveSnack();
                           },
                           iconOn: Icons.vibration,
@@ -180,7 +258,27 @@ class _OptionsScreenState extends State<OptionsScreen> {
                     ),
                   ),
 
+                  const SizedBox(height: 16),
+
+                  // Progress section
+                  BwSectionCard(
+                    title: 'Progress',
+                    child: ListTile(
+                      leading: const Icon(Icons.restart_alt),
+                      title: const Text('Reset all progress'),
+                      subtitle: const Text('Clear achievements and saved games'),
+                      onTap: _resetAllProgress,
+                    ),
+                  ),
+
                           // Bottom helper text removed per request
+                          if (_isAdLoaded && _bannerAd != null)
+                            Container(
+                              alignment: Alignment.center,
+                              width: _bannerAd!.size.width.toDouble(),
+                              height: _bannerAd!.size.height.toDouble(),
+                              child: AdWidget(ad: _bannerAd!),
+                            ),
                           ],
                         ),
                       ),

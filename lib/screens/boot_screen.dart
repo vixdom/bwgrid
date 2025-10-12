@@ -14,10 +14,23 @@ class BootScreen extends StatefulWidget {
 }
 
 class _BootScreenState extends State<BootScreen> {
+  bool _bootStarted = false;
+
   @override
   void initState() {
     super.initState();
-    unawaited(_preloadAndGo());
+    // Defer heavy work to didChangeDependencies/first frame to ensure
+    // Inherited widgets like MediaQuery are available for precacheImage.
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_bootStarted) return;
+    _bootStarted = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_preloadAndGo());
+    });
   }
 
   Future<void> _preloadAndGo() async {
@@ -25,6 +38,9 @@ class _BootScreenState extends State<BootScreen> {
       // Start comprehensive asset preloading early
       final assetPreloader = AssetPreloader();
       debugPrint('[Boot] Starting asset preloading...');
+      // Remove native splash ASAP so our full-bleed BootScreen is visible
+      // immediately after the first Flutter frame.
+      FlutterNativeSplash.remove();
       
       // Start preloading critical assets (non-blocking)
       final preloadFuture = assetPreloader.preloadCriticalAssets(context);
@@ -36,10 +52,6 @@ class _BootScreenState extends State<BootScreen> {
         precacheImage(const AssetImage('assets/BollyWord Splash Screen.png'), ctx),
         precacheImage(const AssetImage('assets/BollyWord welcome screen gold.png'), ctx),
       ].map((f) => f.catchError((_) {})));
-      
-      // Ensure at least one frame shown before removing native splash
-      await Future.delayed(const Duration(milliseconds: 50));
-      FlutterNativeSplash.remove();
       
       // Wait for critical asset preloading to complete before proceeding
       await preloadFuture;
@@ -88,7 +100,18 @@ class _BootScreenState extends State<BootScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // This screen never shows (native splash covers it); keep it minimal.
-    return const ColoredBox(color: Color(0xFF0F3460));
+    // Render a full-screen splash as the very first Flutter frame to
+    // complement Android 12+ native splash restrictions (center icon only).
+    // This ensures a visually full-bleed splash across all platforms.
+    return const Stack(
+      fit: StackFit.expand,
+      children: [
+        // Full-bleed background image
+        Image(
+          image: AssetImage('assets/BollyWord Splash Screen.png'),
+          fit: BoxFit.cover,
+        ),
+      ],
+    );
   }
 }

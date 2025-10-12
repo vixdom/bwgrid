@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/feedback_settings.dart';
 import 'asset_preloader.dart';
+import 'audio_player_pool.dart';
 
 /// FeedbackController manages short SFX and haptics with debounce and settings.
 /// Provide it via Provider and dispose on app shutdown.
@@ -16,6 +17,8 @@ class FeedbackController with ChangeNotifier {
   final FeedbackSettings settings;
   bool _isInitializing = false;
 
+  // Use pooled audio players for optimized memory management
+  final AudioPlayerPool _audioPool = AudioPlayerPool();
   final AudioPlayer _tick = AudioPlayer();
   final AudioPlayer _found = AudioPlayer();
   final AudioPlayer _invalid = AudioPlayer();
@@ -298,6 +301,37 @@ class FeedbackController with ChangeNotifier {
     
     // Initialize audio in background to avoid blocking UI
     _initializeAudioInBackground();
+    
+    // Prepare frequently used sounds in the audio pool for instant playback
+    unawaited(_prepareCriticalSoundsInPool());
+  }
+
+  /// Prepare critical sounds in the audio pool for instant playback
+  Future<void> _prepareCriticalSoundsInPool() async {
+    if (!_audioAvailable) return;
+    
+    try {
+      debugPrint('[FeedbackController] Preparing critical sounds in pool...');
+      
+      // Prepare the most frequently used sounds for instant playback
+      final criticalSounds = [
+        _assetPath('select.wav'),      // Most frequent (tick)
+        _assetPath('word_found.wav'),  // Success feedback
+        _assetPath('invalid.wav'),     // Error feedback
+      ];
+      
+      for (final assetPath in criticalSounds) {
+        try {
+          await _audioPool.preparePlayer(assetPath);
+        } catch (e) {
+          debugPrint('[FeedbackController] Failed to prepare $assetPath: $e');
+        }
+      }
+      
+      debugPrint('[FeedbackController] Critical sounds prepared in pool');
+    } catch (e) {
+      debugPrint('[FeedbackController] Error preparing sounds in pool: $e');
+    }
   }
 
   Future<void> _initializeAudioInBackground() async {
@@ -423,24 +457,28 @@ class FeedbackController with ChangeNotifier {
   }
 
   Future<void> playTick() async {
-    debugPrint('playTick called - audioAvailable:$_audioAvailable, soundEnabled:${settings.soundEnabled}');
     if (!settings.soundEnabled) {
-      debugPrint('playTick skipped: sound disabled');
       return;
     }
     
     final now = DateTime.now();
     if (now.difference(_lastTickAt) < tickThrottle) {
-      debugPrint('playTick throttled');
       return; // debounce
     }
     _lastTickAt = now;
+
+    // Try optimized pool playback first for best performance
+    try {
+      await _playOptimizedSound('select.wav', label: 'tick');
+      return;
+    } catch (e) {
+      debugPrint('Optimized tick playback failed, falling back: $e');
+    }
 
     // Try platform channel first (iOS native)
     if (Platform.isIOS) {
       try {
         await _audioChannel.invokeMethod('playTick');
-        debugPrint('Played tick sound via iOS system sound');
         return;
       } catch (e) {
         debugPrint('Failed to play iOS system sound, falling back to just_audio: $e');
@@ -454,17 +492,22 @@ class FeedbackController with ChangeNotifier {
   }
 
   Future<void> playWordFound() async {
-    debugPrint('playWordFound called - audioAvailable:$_audioAvailable, soundEnabled:${settings.soundEnabled}');
     if (!settings.soundEnabled) {
-      debugPrint('playWordFound skipped: sound disabled');
       return;
+    }
+
+    // Try optimized pool playback first for best performance
+    try {
+      await _playOptimizedSound('word_found.wav', label: 'word_found');
+      return;
+    } catch (e) {
+      debugPrint('Optimized word_found playback failed, falling back: $e');
     }
 
     // Try platform channel first (iOS native)
     if (Platform.isIOS) {
       try {
         await _audioChannel.invokeMethod('playFound');
-        debugPrint('Played word found sound via iOS system sound');
         return;
       } catch (e) {
         debugPrint('Failed to play iOS system sound, falling back to just_audio: $e');
@@ -478,17 +521,22 @@ class FeedbackController with ChangeNotifier {
   }
 
   Future<void> playInvalid() async {
-    debugPrint('playInvalid called - audioAvailable:$_audioAvailable, soundEnabled:${settings.soundEnabled}');
     if (!settings.soundEnabled) {
-      debugPrint('playInvalid skipped: sound disabled');
       return;
+    }
+
+    // Try optimized pool playback first for best performance
+    try {
+      await _playOptimizedSound('invalid.wav', label: 'invalid');
+      return;
+    } catch (e) {
+      debugPrint('Optimized invalid playback failed, falling back: $e');
     }
 
     // Try platform channel first (iOS native)
     if (Platform.isIOS) {
       try {
         await _audioChannel.invokeMethod('playInvalid');
-        debugPrint('Played invalid sound via iOS system sound');
         return;
       } catch (e) {
         debugPrint('Failed to play iOS system sound, falling back to just_audio: $e');
@@ -543,25 +591,36 @@ class FeedbackController with ChangeNotifier {
     } catch (_) {}
   }
 
+  /// Optimized audio playback using pooled players for better performance
+  Future<void> _playOptimizedSound(String assetFile, {required String label}) async {
+    if (!_audioAvailable || !settings.soundEnabled) {
+      return;
+    }
+
+    final assetPath = _assetPath(assetFile);
+    
+    try {
+      // Try pool-based optimized playback first
+      await _audioPool.playOptimized(assetPath);
+    } catch (e) {
+      debugPrint('Error with optimized playback for $label: $e');
+      // Pool playback will handle fallbacks internally
+    }
+  }
+
   // Restart small sample from start for snappy feel
   Future<void> _playSound(AudioPlayer player, {required String label, String? asset}) async {
     if (!_audioAvailable) {
-      debugPrint('_playSound: Audio not available');
       return;
     }
     try {
-      debugPrint('Seeking audio to start for $label (asset: ${asset ?? 'unknown'})...');
       await player.seek(Duration.zero);
-      debugPrint('Starting audio playback for $label...');
       await player.play();
-      debugPrint('Audio playback started successfully for $label');
     } catch (e) {
       debugPrint('Error playing sound for $label: ${e.toString()}');
       // Try to reinitialize the audio session on error
       try {
-        debugPrint('Attempting to reinitialize audio session for $label...');
         await _configureSession();
-        debugPrint('Audio session reconfigured, retrying playback for $label...');
         await player.seek(Duration.zero);
         await player.play();
       } catch (retryError) {
@@ -650,12 +709,19 @@ class FeedbackController with ChangeNotifier {
   }
 
   @override
+  @override
   void dispose() {
+    // Dispose audio pool first
+    debugPrint('[FeedbackController] Disposing audio pool...');
+    unawaited(_audioPool.dispose());
+    
+    // Dispose individual players
     _tick.dispose();
     _found.dispose();
     _invalid.dispose();
     _fireworks.dispose();
-  _clue.dispose();
+    _clue.dispose();
+    
     super.dispose();
   }
 }

@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/achievements_service.dart';
+import '../services/animation_manager.dart';
 import '../build_info.dart';
 
 // ...existing code...
@@ -113,17 +114,18 @@ class _OpeningScreenState extends State<OpeningScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _intro = AnimationController(
+    _intro = AnimationManager().getController(
       vsync: this,
       duration: const Duration(milliseconds: 700),
+      id: 'opening_intro',
     )..forward();
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _intro.dispose();
-    super.dispose();
+  WidgetsBinding.instance.removeObserver(this);
+  AnimationManager().releaseController(_intro, id: 'opening_intro');
+  super.dispose();
   }
 
   @override
@@ -642,9 +644,10 @@ class _CinematicBackgroundState extends State<_CinematicBackground>
   void initState() {
     super.initState();
     // Long-running bounded controller to avoid repeat() period error and keep smooth time.
-    _ctrl = AnimationController(
+    _ctrl = AnimationManager().getController(
       vsync: this,
       duration: const Duration(seconds: 600), // 10 minutes loop
+      id: 'cinematic_bg',
     )
       ..addListener(() => setState(() {}))
       ..repeat();
@@ -662,8 +665,8 @@ class _CinematicBackgroundState extends State<_CinematicBackground>
 
   @override
   void dispose() {
-    _ctrl.dispose();
-    super.dispose();
+  AnimationManager().releaseController(_ctrl, id: 'cinematic_bg');
+  super.dispose();
   }
 
   @override

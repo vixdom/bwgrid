@@ -2,10 +2,10 @@
 /// Replace test IDs with your own before production.
 class AdsConfig {
   // App IDs
-  static const String androidAppId = 'ca-app-pub-3940256099942544~3347511713';
-  static const String iosAppId = 'ca-app-pub-3940256099942544~1458002511';
+  static const String androidAppId = 'ca-app-pub-4369020643957506~1567002882';
+  static const String iosAppId = 'ca-app-pub-4369020643957506~1567002882';
 
   // Banner Ad Unit IDs
-  static const String androidBanner = 'ca-app-pub-3940256099942544/6300978111';
-  static const String iosBanner = 'ca-app-pub-3940256099942544/2934735716';
+  static const String androidBanner = 'ca-app-pub-4369020643957506/1487020917';
+  static const String iosBanner = 'ca-app-pub-4369020643957506/1487020917';
 }

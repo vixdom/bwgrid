@@ -32,6 +32,9 @@ class SelectionController extends ChangeNotifier {
   int _gridSize;
   Set<String> _targetWords;
 
+  List<List<String>> get grid => _grid;
+  int get gridSize => _gridSize;
+
   // Stable color per word
   final Map<String, Color> wordColors = <String, Color>{};
   int _nextColorIndex = 0;
@@ -69,6 +72,29 @@ class SelectionController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void restoreFoundWords(Iterable<String> words) {
+    bool added = false;
+    for (final raw in words) {
+      final word = raw.toUpperCase();
+      if (_isAlreadyFound(word)) continue;
+      final path = pathForWord(word);
+      if (path == null || path.isEmpty) continue;
+      final assigned = wordColors[word] ?? _assignColorForWord(word);
+      final fp = FoundPath(
+        points: List<Offset>.unmodifiable(path),
+        color: assigned,
+        word: word,
+        initialProgress: 1.0,
+      );
+      found.add(fp);
+      wordColors[word] = assigned;
+      added = true;
+    }
+    if (added) {
+      notifyListeners();
+    }
+  }
+
   // Start selection
   void beginAt(Offset cell) {
   if (!_inBounds(cell)) return;
@@ -78,7 +104,6 @@ class SelectionController extends ChangeNotifier {
     activeColor ??= _palette[_nextColorIndex % _palette.length];
     // Begin path
     activePath = [cell];
-    debugPrint('beginAt: active len=${activePath.length} color=$activeColor first=${activePath.isNotEmpty ? activePath.first : null}');
     notifyListeners();
   }
 
@@ -142,6 +167,49 @@ class SelectionController extends ChangeNotifier {
     return null;
   }
 
+  List<Offset>? pathForWord(String word) {
+    final target = word.toUpperCase();
+    final n = _gridSize;
+    for (int r = 0; r < n; r++) {
+      for (int c = 0; c < n; c++) {
+        if (_grid[r][c] != target[0]) continue;
+        final directions = <List<int>>[
+          [0, 1],
+          [0, -1],
+          [1, 0],
+          [-1, 0],
+          [1, 1],
+          [1, -1],
+          [-1, 1],
+          [-1, -1],
+        ];
+        for (final dir in directions) {
+          final path = _collectPath(r, c, dir[0], dir[1], target);
+          if (path != null) {
+            return path;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  List<Offset>? _collectPath(int r, int c, int dr, int dc, String word) {
+    final positions = <Offset>[];
+    for (int i = 0; i < word.length; i++) {
+      final rr = r + dr * i;
+      final cc = c + dc * i;
+      if (rr < 0 || cc < 0 || rr >= _gridSize || cc >= _gridSize) {
+        return null;
+      }
+      if (_grid[rr][cc] != word[i]) {
+        return null;
+      }
+      positions.add(Offset(rr.toDouble(), cc.toDouble()));
+    }
+    return positions;
+  }
+
   /// Temporarily highlight a single cell as a hint
   void showHintAt(Offset cell, {int durationMs = 900}) {
     activeColor = Colors.amberAccent;
@@ -159,29 +227,15 @@ class SelectionController extends ChangeNotifier {
     if (_startCell == null || !_inBounds(cell)) return false;
     // No-op if same as last point
     if (activePath.isNotEmpty && activePath.last == cell) return false;
-    // Only allow straight line (row/col) or perfect diagonal from the start
-    final r0 = _startCell!.dx.toInt();
-    final c0 = _startCell!.dy.toInt();
-    final r1 = cell.dx.toInt();
-    final c1 = cell.dy.toInt();
-    final dr = r1 - r0;
-    final dc = c1 - c0;
-    final isStraightOrDiag = (dr == 0) || (dc == 0) || (dr.abs() == dc.abs());
-    if (!isStraightOrDiag) return false;
 
     _currentEndCell = cell;
     final next = _linePath(_startCell!, _currentEndCell!);
     
-    // Ensure we don't include already found cells in the active path
-    final validNext = <Offset>[];
-    for (final point in next) {
-      validNext.add(point);
-    }
-    
-    final changed = !_offsetListEquals(activePath, validNext);
+    // For active selection, show the full path even if some cells are already found
+    // The commit will validate if the selection is valid
+    final changed = !_offsetListEquals(activePath, next);
     if (changed) {
-      activePath = validNext;
-      debugPrint('extendTo: active len=${activePath.length} color=$activeColor first=${activePath.isNotEmpty ? activePath.first : null}');
+      activePath = next;
       notifyListeners();
     }
     return changed;
@@ -223,6 +277,26 @@ class SelectionController extends ChangeNotifier {
     _resetSelection();
     notifyListeners();
     return result;
+  }
+
+  /// Debug helper: force-mark a word as found by supplying its path.
+  /// Returns the created [FoundPath] or null if word already recorded.
+  FoundPath? forceAddWord(String word, List<Offset> path) {
+    final canonical = word.toUpperCase();
+    if (_isAlreadyFound(canonical)) return null;
+    if (path.isEmpty) return null;
+    final assigned = wordColors[canonical] ?? _assignColorForWord(canonical);
+    final fp = FoundPath(
+      points: List<Offset>.unmodifiable(path),
+      color: assigned,
+      word: canonical,
+      initialProgress: 0.0,
+    );
+    found.add(fp);
+    wordColors[canonical] = assigned;
+    _animateProgress(fp.progress, durationMs: 180);
+    notifyListeners();
+    return fp;
   }
 
   // Utils
@@ -279,6 +353,8 @@ class SelectionController extends ChangeNotifier {
   String _reverse(String s) => String.fromCharCodes(s.runes.toList().reversed);
 
   bool _isAlreadyFound(String word) => found.any((f) => f.word == word);
+
+  bool _isCellInFoundPaths(Offset cell) => found.any((fp) => fp.points.contains(cell));
 
   Color _assignColorForWord(String word) {
     final color = _palette[_nextColorIndex % _palette.length];

@@ -21,20 +21,23 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
     }
 
     kotlinOptions {
-        jvmTarget = "11"
+        jvmTarget = "1.8"
     }
 
     defaultConfig {
         applicationId = "com.moviemasala.wordsearch"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        versionCode = 9
-        versionName = "1.2.1"
+        // Align with pubspec.yaml if properties are provided by Flutter tooling
+        val flutterVersionCode = project.findProperty("flutter.versionCode")?.toString()?.toIntOrNull()
+        val flutterVersionName = project.findProperty("flutter.versionName")?.toString()
+        versionCode = flutterVersionCode ?: 10
+        versionName = flutterVersionName ?: "1.2.2"
         multiDexEnabled = true
     }
 
@@ -56,9 +59,8 @@ android {
         }
     }
 
-    packagingOptions {
-        jniLibs.keepDebugSymbols.add("**/*.so")
-    }
+    // Packaging: let Gradle strip release native libs and produce proper symbols
+    // We avoid keepDebugSymbols to prevent conflicts during AAB build.
 
     buildTypes {
         release {
@@ -66,6 +68,10 @@ android {
             isMinifyEnabled = false
             isShrinkResources = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Generate native symbols for Play Console (smaller than FULL)
+            ndk {
+                debugSymbolLevel = "SYMBOL_TABLE"
+            }
         }
         debug {
             isDebuggable = true

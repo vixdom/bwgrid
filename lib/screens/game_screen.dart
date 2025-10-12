@@ -9,8 +9,12 @@ import '../ads/ads_config.dart';
 import '../services/game_controller.dart';
 import '../controllers/selection_controller.dart';
 import '../widgets/film_reel_painter.dart';
+import '../widgets/progress_path_screen.dart';
 import '../services/theme_dictionary.dart';
 import '../models/feedback_settings.dart';
+import '../services/animation_manager.dart';
+import '../models/stage_scene.dart';
+import '../services/game_persistence.dart';
 
 class GameScreen extends StatefulWidget {
   const GameScreen({super.key});
@@ -19,7 +23,8 @@ class GameScreen extends StatefulWidget {
   State<GameScreen> createState() => _GameScreenState();
 }
 
-class _GameScreenState extends State<GameScreen> {
+class _GameScreenState extends State<GameScreen>
+  with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   // Optimized state management with ValueNotifiers to reduce rebuilds
   late final ValueNotifier<int> _scoreNotifier;
   late final ValueNotifier<bool> _hintUnlockedNotifier;
@@ -106,23 +111,75 @@ class _GameScreenState extends State<GameScreen> {
   List<List<String>>? grid;
   SelectionController? _sel;
   bool _showConfetti = false;
-  List<_ConfettiDot> _confetti = const [];
+  List<ConfettiParticle> _confetti = const [];
+  late AnimationController _confettiController;
+  late Animation<double> _confettiAnimation;
   String _themeTitle = '';
   List<Clue> _clues = const [];
   bool _startingNewPuzzle = false;
   BannerAd? _bannerAd;
   bool _isBannerAdLoaded = false;
+  static const List<SceneDefinition> _fallbackScenes = [
+    SceneDefinition(index: 1, title: 'Spotlight Search', mode: SceneMode.classic),
+    SceneDefinition(index: 2, title: 'Hidden Names', mode: SceneMode.hiddenClues),
+    SceneDefinition(index: 3, title: 'Lightning Round', mode: SceneMode.timed, timeLimit: Duration(seconds: 90)),
+  ];
+  late final List<StageDefinition> _allStages = StagePlaybook.getAllStages();
+  int _currentStageIndex = 0;
+  StageDefinition get _stageDefinition => _allStages[_currentStageIndex];
+  List<SceneDefinition> get _sceneSchedule => _stageDefinition.scenes.length >= 2
+      ? _stageDefinition.scenes
+      : _fallbackScenes;
+  int _currentSceneIndex = 0;
+  ThemeDictionary? _themeDictionary;
+  ThemeEntry? _stageTheme;
+  final Set<String> _usedAnswers = <String>{};
+  final Set<String> _revealedClues = <String>{};
+  Timer? _sceneTimer;
+  int? _remainingSeconds;
+  int? _sceneDurationSeconds;
+  bool _timeExpired = false;
+  bool _sceneActive = false;
+  int _metronomeBeat = 0;
+  bool _showClapboard = false;
+  String _clapboardLabel = '';
+  String _clapboardSubtitle = '';
+  bool _restoringFromSave = false;
+  Timer? _saveDebounce;
+  Timer? _clapboardTimer;
+  final GamePersistence _gamePersistence = const GamePersistence();
+  bool _showProgressPath = false;
+  
+  // Triple-tap detection
+  DateTime? _lastTapTime;
+  int _tapCount = 0;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Initialize ValueNotifiers
     _scoreNotifier = ValueNotifier<int>(0);
     _hintUnlockedNotifier = ValueNotifier<bool>(false);
     _showConfettiNotifier = ValueNotifier<bool>(false);
     _selectionNotifier = ValueNotifier<SelectionController?>(null);
     
-    unawaited(_loadPuzzle());
+    // Initialize optimized animation controller
+    _confettiController = AnimationManager().getController(
+      duration: const Duration(milliseconds: 2000),
+      vsync: this,
+      id: 'confetti',
+    );
+    
+    _confettiAnimation = AnimationManager().createAnimation(
+      controller: _confettiController,
+      begin: 0.0,
+      end: 1.0,
+      curveName: 'easeOut',
+      id: 'confetti_progress',
+    );
+    
+    unawaited(_restoreOrInitializeStage());
     // Load banner ad on both Android and iOS
     final adUnitId = Platform.isAndroid ? AdsConfig.androidBanner : AdsConfig.iosBanner;
     _bannerAd = BannerAd(
@@ -144,7 +201,7 @@ class _GameScreenState extends State<GameScreen> {
 
   // Grid-local gesture mapping using inner constraints
   void _onGridPanStart(DragStartDetails details, BoxConstraints inner) {
-    if (_sel == null) return;
+    if (_sel == null || !_sceneActive || _timeExpired) return;
     final cell = inner.maxWidth / gridSize;
     final col = (details.localPosition.dx / cell).floor();
     final row = (details.localPosition.dy / cell).floor();
@@ -158,7 +215,7 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _onGridPanUpdate(DragUpdateDetails details, BoxConstraints inner) {
-    if (_sel == null || !_sel!.hasActive) return;
+    if (_sel == null || !_sel!.hasActive || !_sceneActive || _timeExpired) return;
     final cell = inner.maxWidth / gridSize;
     final col = (details.localPosition.dx / cell).floor();
     final row = (details.localPosition.dy / cell).floor();
@@ -199,9 +256,16 @@ class _GameScreenState extends State<GameScreen> {
         TextDirection.ltr,
       );
       if (_sel?.isComplete == true) {
-        await gc.onPuzzleComplete();
+        _cancelSceneTimer();
+        setState(() {
+          _sceneActive = false;
+        });
+        // Only play fireworks sound when completing the final scene of a screen
+        final playSound = _isFinalScene;
+        await gc.onPuzzleComplete(playSound: playSound);
         _spawnConfetti();
       }
+      _schedulePersistGameState();
     } else if (wasActive && prevLen >= 2) {
       await gc.onInvalid();
     }
@@ -219,18 +283,232 @@ class _GameScreenState extends State<GameScreen> {
   // Optimized getters using ValueNotifiers
   int get score => _scoreNotifier.value;
   bool get _hintUnlocked => _hintUnlockedNotifier.value;
+  SceneDefinition get _currentScene => _sceneSchedule[_currentSceneIndex];
+  bool get _isHiddenScene => _currentScene.mode == SceneMode.hiddenClues;
+  bool get _isTimedScene => _currentScene.mode == SceneMode.timed;
 
-  Future<void> _loadPuzzle() async {
+  bool get _hasMoreScenes => (_currentSceneIndex + 1) < _sceneSchedule.length;
+
+  bool get _isFinalScene {
+  final finalScene = !_hasMoreScenes;
+  debugPrint('🎬 Scene check: _currentSceneIndex=$_currentSceneIndex, totalScenes=${_sceneSchedule.length}, finalScene=$finalScene');
+    return finalScene;
+  }
+
+  Future<void> _restoreOrInitializeStage() async {
+    final saved = await _gamePersistence.load();
+    if (!mounted) return;
+    if (saved != null) {
+      final restored = await _restoreSavedGame(saved);
+      if (restored) {
+        return;
+      }
+      await _gamePersistence.clear();
+    }
+    await _initializeStage();
+  }
+
+  Future<bool> _restoreSavedGame(SavedGameState state) async {
+    // Validate stage index
+    if (state.stageIndex < 1 || state.stageIndex > _allStages.length) {
+      return false;
+    }
+    // Set stage index (1-indexed in save, 0-indexed in array)
+    _currentStageIndex = state.stageIndex - 1;
+    
+    if (state.sceneIndex < 0 || state.sceneIndex >= _sceneSchedule.length) {
+      return false;
+    }
+    if (state.gridRows.isEmpty) {
+      return false;
+    }
+
+    final dict = _themeDictionary ??
+        await ThemeDictionary.loadFromAsset('assets/key and themes.txt');
+    final theme = dict.findByName(state.themeName);
+
+    final rows = <List<String>>[];
+    for (final row in state.gridRows) {
+      final chars = row.trim().toUpperCase().split('');
+      if (chars.length != gridSize) {
+        return false;
+      }
+      rows.add(List<String>.from(chars));
+    }
+
+    final targetWords = state.clues.map((c) => c.answer).toSet();
+    final controller = SelectionController(
+      grid: rows.map((r) => List<String>.from(r)).toList(),
+      gridSize: gridSize,
+      targetWords: targetWords,
+    );
+    controller.restoreFoundWords(state.foundWords);
+
+    _cancelSceneTimer();
+    _restoringFromSave = true;
+
+    setState(() {
+      _themeDictionary = dict;
+      _stageTheme = theme;
+      _currentSceneIndex = state.sceneIndex;
+      _themeTitle = state.themeName.toUpperCase();
+      _clues = List<Clue>.from(state.clues);
+      _usedAnswers
+        ..clear()
+        ..addAll(state.usedAnswers);
+      _revealedClues
+        ..clear()
+        ..addAll(state.revealedClues);
+      grid = rows;
+      _sel = controller;
+      _selectionNotifier.value = controller;
+      _scoreNotifier.value = state.score;
+      _hintUnlockedNotifier.value = state.hintUnlocked;
+    _sceneDurationSeconds = state.sceneDurationSeconds ??
+      _sceneSchedule[state.sceneIndex].timeLimit?.inSeconds;
+      _remainingSeconds = state.remainingSeconds ?? _sceneDurationSeconds;
+      _timeExpired = state.timeExpired;
+      _sceneActive = state.sceneActive && !_timeExpired && !(controller.isComplete);
+      _metronomeBeat = 0;
+    });
+
+    _restoringFromSave = false;
+
+    final shouldResumeTimer =
+        _sceneActive && _isTimedScene && (_remainingSeconds ?? 0) > 0;
+    if (shouldResumeTimer) {
+      final remaining = _remainingSeconds!.clamp(0, 5999).toInt();
+      _startSceneTimer(Duration(seconds: remaining));
+    }
+
+    _showSceneIntro();
+    _schedulePersistGameState();
+    return true;
+  }
+
+  void _schedulePersistGameState({bool immediate = false}) {
+    if (_restoringFromSave) return;
+    if (immediate) {
+      _saveDebounce?.cancel();
+      _saveDebounce = null;
+      unawaited(_persistGameState());
+      return;
+    }
+    _saveDebounce?.cancel();
+    _saveDebounce = Timer(const Duration(milliseconds: 900), () {
+      _saveDebounce?.cancel();
+      _saveDebounce = null;
+      unawaited(_persistGameState());
+    });
+  }
+
+  Future<void> _persistGameState() async {
+    if (!mounted) return;
+    final controller = _sel;
+    final currentGrid = grid;
+    if (controller == null || currentGrid == null) {
+      await _gamePersistence.clear();
+      return;
+    }
+    if (controller.isComplete) {
+      await _gamePersistence.clear();
+      return;
+    }
+
+    final rows = currentGrid.map((row) => row.join()).toList(growable: false);
+    final saved = SavedGameState(
+      stageIndex: _stageDefinition.index,
+      sceneIndex: _currentSceneIndex,
+      themeName: _stageTheme?.name ?? _stageDefinition.themeName,
+      gridRows: rows,
+      clues: List<Clue>.from(_clues),
+      usedAnswers: List<String>.from(_usedAnswers),
+      revealedClues: List<String>.from(_revealedClues),
+      foundWords: controller.found.map((fp) => fp.word).toList(growable: false),
+      score: score,
+      hintUnlocked: _hintUnlocked,
+      sceneActive: _sceneActive,
+      remainingSeconds: _remainingSeconds,
+      sceneDurationSeconds: _sceneDurationSeconds,
+      timeExpired: _timeExpired,
+    );
+
+    await _gamePersistence.save(saved);
+  }
+
+  Future<void> _initializeStage() async {
+    debugPrint('🎬 _initializeStage: stage="${_stageDefinition.name}", totalScenes=${_sceneSchedule.length}');
+    for (var i = 0; i < _sceneSchedule.length; i++) {
+      debugPrint('🎬   Scene $i: ${_sceneSchedule[i].title} (${_sceneSchedule[i].mode})');
+    }
     final dict = await ThemeDictionary.loadFromAsset(
       'assets/key and themes.txt',
     );
-    final picked = dict.pickRandom(10, maxLen: gridSize);
-    final theme =
-        picked ??
-        (dict.themes.isNotEmpty
-            ? dict.themes.first
-            : ThemeEntry(name: 'Bolly Words', names: const []));
-    final clues = theme.pickClues(10, maxLen: gridSize);
+    final theme = dict.findByName(_stageDefinition.themeName);
+    setState(() {
+      _themeDictionary = dict;
+      _stageTheme = theme;
+      _currentSceneIndex = 0;
+      _usedAnswers.clear();
+      _showProgressPath = true; // Show path at game start
+    });
+    // Don't load puzzle yet - wait for progress path to be dismissed
+  }
+
+  Future<void> _loadPuzzle() async {
+    final dict = _themeDictionary ?? await ThemeDictionary.loadFromAsset(
+      'assets/key and themes.txt',
+    );
+    _themeDictionary = dict;
+    final theme = _stageTheme ?? dict.findByName(_stageDefinition.themeName);
+    _stageTheme = theme;
+
+    final exclude = _usedAnswers.toSet();
+    var clues = theme.pickClues(10, maxLen: gridSize, exclude: exclude);
+    
+    // If we don't have enough unique clues, we need to handle it gracefully
+    if (clues.length < 10) {
+      debugPrint('⚠️ Only found ${clues.length} unused clues. Used so far: ${_usedAnswers.length} clues');
+      debugPrint('⚠️ Used clues: ${_usedAnswers.join(", ")}');
+      
+      // Check total available clues
+      final totalClues = theme.pickClues(100, maxLen: gridSize);
+      debugPrint('⚠️ Theme has ${totalClues.length} total clues available (max length $gridSize)');
+      
+      if (totalClues.length < 30) {
+        // Theme doesn't have enough clues for 3 scenes (30 clues needed)
+        debugPrint('⚠️ WARNING: Theme only has ${totalClues.length} clues but needs 30 for 3 scenes!');
+        debugPrint('⚠️ Moving to next stage to avoid repetitions');
+        
+        // Move to next stage instead of reusing clues
+        if (_currentStageIndex + 1 < _allStages.length) {
+          _currentStageIndex++;
+          await _initializeStage();
+          await _loadPuzzle();
+          return;
+        } else {
+          // If we're at the last stage, restart from the beginning
+          debugPrint('⚠️ Completed all stages, restarting from beginning');
+          _currentStageIndex = 0;
+          await _initializeStage();
+          await _loadPuzzle();
+          return;
+        }
+      }
+      
+      // If theme has enough clues but we've used many, try to reuse oldest ones
+      // Remove oldest used answers to get fresh clues (keep most recent to avoid immediate repeats)
+      final keepRecent = _usedAnswers.length > 10 ? 10 : 0;
+      if (keepRecent > 0) {
+        final recentlyUsed = _usedAnswers.skip(_usedAnswers.length - keepRecent).toSet();
+        clues = theme.pickClues(10, maxLen: gridSize, exclude: recentlyUsed);
+        debugPrint('⚠️ Reusing older clues while avoiding ${keepRecent} most recent. Got ${clues.length} clues');
+      } else {
+        clues = theme.pickClues(10, maxLen: gridSize);
+        debugPrint('⚠️ Picking any 10 clues. Got ${clues.length} clues');
+      }
+    }
+    
     final chosen = (clues.length >= 10)
         ? clues.take(10).toList()
         : (clues +
@@ -241,6 +519,8 @@ class _GameScreenState extends State<GameScreen> {
                   ))
               .take(10)
               .toList();
+
+    _usedAnswers.addAll(chosen.map((c) => c.answer));
 
     debugPrint('Selected words: ${chosen.map((c) => '${c.answer}(${c.answer.length})').join(', ')}');
 
@@ -253,7 +533,27 @@ class _GameScreenState extends State<GameScreen> {
       _scoreNotifier.value = 0;
       _hintUnlockedNotifier.value = false;
       _selectionNotifier.value = null;
+      _revealedClues.clear();
+      _remainingSeconds = _currentScene.timeLimit?.inSeconds;
+      _sceneDurationSeconds = _currentScene.timeLimit?.inSeconds;
+      _timeExpired = false;
+      _sceneActive = true;
+      _metronomeBeat = 0;
+      if (!_isTimedScene) {
+        _remainingSeconds = null;
+        _sceneDurationSeconds = null;
+      }
     });
+
+    _cancelSceneTimer();
+    if (_isTimedScene && _currentScene.timeLimit != null) {
+      _startSceneTimer(_currentScene.timeLimit!);
+    } else {
+      setState(() {
+        _remainingSeconds = null;
+        _sceneDurationSeconds = null;
+      });
+    }
 
     const int maxAttempts = 1000;
     _Puzzle? puzzle;
@@ -298,17 +598,146 @@ class _GameScreenState extends State<GameScreen> {
       // Update selection notifier
       _selectionNotifier.value = _sel;
     });
+
+    _showSceneIntro();
+    _schedulePersistGameState();
   }
 
-  Future<void> _playAgain() async {
+  void _cancelSceneTimer() {
+    _sceneTimer?.cancel();
+    _sceneTimer = null;
+  }
+
+  void _startSceneTimer(Duration limit) {
+    _cancelSceneTimer();
+    final totalSeconds = limit.inSeconds;
+    if (totalSeconds <= 0) {
+      setState(() {
+        _remainingSeconds = 0;
+      });
+      _handleTimeExpired();
+      return;
+    }
+    setState(() {
+      _remainingSeconds = totalSeconds;
+      _sceneDurationSeconds ??= totalSeconds;
+    });
+    _sceneTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_sel?.isComplete == true || _timeExpired) {
+        timer.cancel();
+        return;
+      }
+      final current = _remainingSeconds ?? 0;
+      final next = (current - 1).clamp(0, 6000).toInt();
+      setState(() {
+        _remainingSeconds = next;
+        _metronomeBeat++;
+      });
+      _playMetronomeTick(next);
+      _schedulePersistGameState();
+      if (next <= 0) {
+        timer.cancel();
+        if (!mounted) return;
+        _handleTimeExpired();
+      }
+    });
+  }
+
+  void _playMetronomeTick(int remainingSeconds) {
+    final gc = context.read<GameController>();
+    
+    // Milestone celebrations (positive reinforcement)
+    if (remainingSeconds == 60) {
+      _showMilestoneFeedback('One Minute Left! 💪');
+      unawaited(gc.feedback.hapticMedium());
+    } else if (remainingSeconds == 45) {
+      _showMilestoneFeedback('45 Seconds - Keep Going! 🎯');
+      unawaited(gc.feedback.hapticLight());
+    } else if (remainingSeconds == 30) {
+      _showMilestoneFeedback('30 Seconds - You Got This! 🔥');
+      unawaited(gc.feedback.hapticMedium());
+    } else if (remainingSeconds == 15) {
+      _showMilestoneFeedback('15 Seconds - Final Push! 🚀');
+      unawaited(gc.feedback.hapticMedium());
+    }
+    
+    // Escalating audio patterns based on time remaining
+    if (remainingSeconds <= 5) {
+      // Critical: Rapid double-tick with haptics
+      unawaited(gc.feedback.playTick());
+      unawaited(gc.feedback.hapticHeavy());
+      Future.delayed(const Duration(milliseconds: 180), () {
+        if (!mounted) return;
+        unawaited(gc.feedback.playTick());
+      });
+    } else if (remainingSeconds <= 10) {
+      // High urgency: Double-tick with medium haptics
+      unawaited(gc.feedback.playTick());
+      if (remainingSeconds % 2 == 0) {
+        unawaited(gc.feedback.hapticMedium());
+      }
+      Future.delayed(const Duration(milliseconds: 260), () {
+        if (!mounted) return;
+        unawaited(gc.feedback.playTick());
+      });
+    } else if (remainingSeconds <= 30) {
+      // Medium urgency: Single tick with light haptics every 3 seconds
+      unawaited(gc.feedback.playTick());
+      if (remainingSeconds % 3 == 0) {
+        unawaited(gc.feedback.hapticLight());
+      }
+    } else {
+      // Normal: Single tick
+      unawaited(gc.feedback.playTick());
+    }
+  }
+
+  void _showMilestoneFeedback(String message) {
+    if (!mounted) return;
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        backgroundColor: Colors.deepOrange.shade700,
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      ),
+    );
+  }
+
+  void _handleTimeExpired() {
+    if (_timeExpired) return;
+    _cancelSceneTimer();
+    setState(() {
+      _timeExpired = true;
+      _sceneActive = false;
+    });
+    if (!mounted) return;
+    final gc = context.read<GameController>();
+    unawaited(gc.onInvalid());
+    _schedulePersistGameState(immediate: true);
+  }
+
+  Future<void> _restartScene() async {
     if (_startingNewPuzzle) return;
     setState(() {
       _startingNewPuzzle = true;
     });
-    // Reset using ValueNotifiers
-    _scoreNotifier.value = 0;
-    _hintUnlockedNotifier.value = false;
-    
     await _loadPuzzle();
     if (!mounted) return;
     setState(() {
@@ -316,10 +745,561 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
+  Future<void> _advanceScene() async {
+    if (_startingNewPuzzle) return;
+    debugPrint('🎬 _advanceScene: stageIndex=$_currentStageIndex, sceneIndex=$_currentSceneIndex, hasMore=$_hasMoreScenes');
+    setState(() {
+      _startingNewPuzzle = true;
+    });
+    
+    final bool willChangeStage = _isFinalScene;
+    
+    if (_isFinalScene) {
+      // Finished all scenes in this stage, advance to next stage
+      final isLastStage = (_currentStageIndex + 1) >= _allStages.length;
+      if (isLastStage) {
+        debugPrint('🎬 Game complete! Looping back to first stage');
+        setState(() {
+          _currentStageIndex = 0;
+          _currentSceneIndex = 0;
+          _usedAnswers.clear();
+        });
+      } else {
+        debugPrint('🎬 Stage complete, advancing to stage ${_currentStageIndex + 1}');
+        setState(() {
+          _currentStageIndex++;
+          _currentSceneIndex = 0;
+          _usedAnswers.clear();
+        });
+      }
+    } else {
+      debugPrint('🎬 Advancing to next scene: ${_currentSceneIndex + 1}');
+      setState(() {
+        _currentSceneIndex++;
+      });
+    }
+    
+    // Show progress path only when changing stages (at scene 0 of new stage)
+    if (willChangeStage) {
+      setState(() {
+        _showProgressPath = true;
+      });
+      // Wait for progress path to be dismissed before loading puzzle
+      return;
+    }
+    
+    await _loadPuzzle();
+    if (!mounted) return;
+    setState(() {
+      _startingNewPuzzle = false;
+    });
+  }
+  
+  Future<void> _onProgressPathComplete() async {
+    setState(() {
+      _showProgressPath = false;
+    });
+    
+    // Only load puzzle if it hasn't been loaded yet (grid is null)
+    if (grid == null) {
+      await _loadPuzzle();
+    }
+    
+    if (!mounted) return;
+    setState(() {
+      _startingNewPuzzle = false;
+    });
+  }
+
+  void _showSceneIntro() {
+    _clapboardTimer?.cancel();
+    if (!mounted) return;
+
+    final sceneIndexLabel = 'SCENE ${_currentScene.index}';
+    final sceneTitle = _currentScene.title.toUpperCase();
+
+    setState(() {
+      _clapboardLabel = sceneIndexLabel;
+      _clapboardSubtitle = sceneTitle;
+      _showClapboard = true;
+    });
+
+    final gameController = context.read<GameController>();
+    
+    // Synchronize sounds and haptics with the clapboard animation
+    // Animation: 800ms total with 4 stages
+    // Stage 1 (0-160ms): First clap down - sound at 0ms
+    // Stage 2 (160-320ms): First clap up - sound at 160ms
+    // Stage 3 (320-480ms): Second clap down - sound at 320ms
+    // Stage 4 (480-800ms): Second clap up and settle - sound at 480ms
+    
+    if (gameController.settings.soundEnabled) {
+      // First clap down
+      unawaited(gameController.feedback.playTick());
+      // First clap up
+      Future.delayed(const Duration(milliseconds: 160), () {
+        if (!mounted || !_showClapboard) return;
+        unawaited(gameController.feedback.playTick());
+      });
+      // Second clap down
+      Future.delayed(const Duration(milliseconds: 320), () {
+        if (!mounted || !_showClapboard) return;
+        unawaited(gameController.feedback.playTick());
+      });
+      // Second clap up (softer)
+      Future.delayed(const Duration(milliseconds: 480), () {
+        if (!mounted || !_showClapboard) return;
+        unawaited(gameController.feedback.playTick());
+      });
+    }
+    
+    if (gameController.settings.hapticsEnabled) {
+      // First clap - medium haptic
+      unawaited(gameController.feedback.hapticMedium());
+      // Second clap - light haptic
+      Future.delayed(const Duration(milliseconds: 320), () {
+        if (!mounted || !_showClapboard) return;
+        unawaited(gameController.feedback.hapticLight());
+      });
+    }
+
+    _clapboardTimer = Timer(const Duration(milliseconds: 2200), () {
+      if (!mounted) return;
+      setState(() {
+        _showClapboard = false;
+      });
+    });
+  }
+
+  String _formatTime(int seconds) {
+    final mins = seconds ~/ 60;
+    final secs = seconds % 60;
+    return '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+  }
+
+  /// Build simple timer display (no circular ring)
+  Widget _buildTimerDisplay(BuildContext context) {
+    final remaining = _remainingSeconds!.clamp(0, 5999).toInt();
+    final total = _sceneDurationSeconds ?? 90;
+    final progress = remaining / total;
+    
+    // Color transitions: green → yellow → orange → red
+    final Color timerColor;
+    if (progress > 0.5) {
+      // Green to yellow (50% to 100%)
+      timerColor = Color.lerp(Colors.yellow.shade600, Colors.green.shade500, (progress - 0.5) * 2)!;
+    } else if (progress > 0.2) {
+      // Yellow to orange (20% to 50%)
+      timerColor = Color.lerp(Colors.orange.shade600, Colors.yellow.shade600, (progress - 0.2) / 0.3)!;
+    } else {
+      // Orange to red (0% to 20%)
+      timerColor = Color.lerp(Colors.red.shade600, Colors.orange.shade600, progress / 0.2)!;
+    }
+    
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.timer, size: 18, color: timerColor),
+        const SizedBox(width: 6),
+        Text(
+          _formatTime(remaining),
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+            color: Theme.of(context).colorScheme.onPrimaryContainer,
+            height: 1.0,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Build "lit fuse" progress bar
+  Widget _buildLitFuse(BuildContext context) {
+    final remaining = _remainingSeconds!.clamp(0, 5999).toInt();
+    final total = _sceneDurationSeconds ?? 90;
+    final progress = remaining / total;
+    
+    // Color transitions for the fuse
+    final Color fuseColor;
+    if (progress > 0.5) {
+      fuseColor = Color.lerp(Colors.orange.shade400, Colors.orange.shade300, (progress - 0.5) * 2)!;
+    } else if (progress > 0.2) {
+      fuseColor = Color.lerp(Colors.deepOrange.shade500, Colors.orange.shade400, (progress - 0.2) / 0.3)!;
+    } else {
+      fuseColor = Color.lerp(Colors.red.shade600, Colors.deepOrange.shade500, progress / 0.2)!;
+    }
+    
+    return Container(
+      height: 6,
+      margin: const EdgeInsets.symmetric(horizontal: 24),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade800.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: Stack(
+        children: [
+          // Lit fuse (burns from right to left)
+          AnimatedFractionallySizedBox(
+            duration: const Duration(milliseconds: 300),
+            alignment: Alignment.centerLeft,
+            widthFactor: progress,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    fuseColor,
+                    fuseColor.withOpacity(0.8),
+                    Colors.yellow.shade300, // Bright tip
+                  ],
+                  stops: const [0.0, 0.7, 1.0],
+                ),
+                borderRadius: BorderRadius.circular(3),
+                boxShadow: [
+                  BoxShadow(
+                    color: fuseColor.withOpacity(0.6),
+                    blurRadius: 8,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Spark/glow at the tip
+          if (progress > 0.01)
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 300),
+              left: (progress * MediaQuery.of(context).size.width - 48) - 4,
+              top: -2,
+              child: Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.yellow.shade200,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.orange.shade300.withOpacity(0.8),
+                      blurRadius: 12,
+                      spreadRadius: 3,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Get urgency level based on remaining time
+  int _getUrgencyLevel(int remainingSeconds) {
+    if (remainingSeconds <= 5) return 3; // Critical
+    if (remainingSeconds <= 10) return 2; // High
+    if (remainingSeconds <= 30) return 1; // Medium
+    return 0; // Normal
+  }
+
+  /// Build urgency glow effect around the grid
+  Widget _buildUrgencyGlowEffect(int urgencyLevel) {
+    Color glowColor;
+    double opacity;
+    double blurRadius;
+    
+    switch (urgencyLevel) {
+      case 3: // Critical (0-5 seconds)
+        glowColor = Colors.red;
+        opacity = 0.4;
+        blurRadius = 40.0;
+        break;
+      case 2: // High (6-10 seconds)
+        glowColor = Colors.orange;
+        opacity = 0.3;
+        blurRadius = 30.0;
+        break;
+      case 1: // Medium (11-30 seconds)
+        glowColor = Colors.yellow;
+        opacity = 0.2;
+        blurRadius = 20.0;
+        break;
+      default:
+        return const SizedBox.shrink();
+    }
+    
+    return TweenAnimationBuilder<double>(
+      key: ValueKey(urgencyLevel),
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: Duration(milliseconds: urgencyLevel == 3 ? 400 : 600),
+      curve: Curves.easeInOut,
+      builder: (context, value, child) {
+        final pulseValue = urgencyLevel == 3 
+            ? (sin(_metronomeBeat * pi) * 0.3 + 0.7) // Rapid pulse for critical
+            : value;
+        
+        return Container(
+          decoration: BoxDecoration(
+            boxShadow: [
+              BoxShadow(
+                color: glowColor.withOpacity(opacity * pulseValue),
+                blurRadius: blurRadius * pulseValue,
+                spreadRadius: 5.0 * pulseValue,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// Build filmstrip-style progress bar
+  Widget _buildFilmstripProgressBar(BuildContext context) {
+    final remaining = _remainingSeconds!.clamp(0, 5999).toInt();
+    final total = _sceneDurationSeconds ?? 90;
+    final progress = remaining / total;
+    
+    // Color based on urgency
+    Color barColor;
+    if (progress > 0.5) {
+      barColor = Colors.green.shade600;
+    } else if (progress > 0.2) {
+      barColor = Colors.orange.shade600;
+    } else {
+      barColor = Colors.red.shade600;
+    }
+    
+    return Container(
+      height: 16,
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(
+          color: Colors.brown.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(3),
+        child: Stack(
+          children: [
+            // Progress bar fill
+            FractionallySizedBox(
+              widthFactor: progress,
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [barColor, barColor.withOpacity(0.7)],
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                  ),
+                ),
+              ),
+            ),
+            // Filmstrip perforations
+            CustomPaint(
+              painter: _FilmstripPainter(
+                color: Colors.white.withOpacity(0.15),
+              ),
+              size: const Size(double.infinity, 16),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String get _currentSceneTheme => _stageTheme?.name.toUpperCase() ?? 'BOLLY WORD GRID';
+
+  void _onThemeHeaderTap() {
+    if (_sel == null || !_sceneActive || _timeExpired) return;
+    debugPrint('🎬 Triple-tap debug: Auto-completing scene');
+    final sc = _sel!;
+    final remaining = sc.remainingWords.toList();
+    debugPrint('🎬 Remaining words: ${remaining.join(", ")}');
+    if (remaining.isEmpty) return;
+
+    final totalRemaining = remaining.length;
+    final targetCount = totalRemaining <= 1
+        ? totalRemaining
+        : min(9, totalRemaining - 1);
+    debugPrint('🎬 Auto-complete target count: $targetCount of $totalRemaining');
+    if (targetCount == 0) {
+      return;
+    }
+
+    final gc = context.read<GameController>();
+
+    // Auto-complete the desired number of remaining words
+    int autoCompleted = 0;
+    for (final word in remaining) {
+      if (autoCompleted >= targetCount) {
+        break;
+      }
+      final path = sc.pathForWord(word);
+      if (path == null || path.isEmpty) continue;
+      final reversed = String.fromCharCodes(word.runes.toList().reversed);
+      final canonical = sc.targetWords.contains(word)
+          ? word
+          : (sc.targetWords.contains(reversed) ? reversed : null);
+      if (canonical == null) continue;
+      if (sc.found.any((f) => f.word == canonical)) continue;
+
+      final fp = sc.forceAddWord(canonical, path);
+      if (fp != null) {
+        _scoreNotifier.value += 10;
+        debugPrint('🎬 Auto-completed: $canonical');
+        unawaited(gc.onWordFound());
+        autoCompleted += 1;
+      }
+    }
+
+    _selectionNotifier.value = sc;
+
+    // Check if puzzle is now complete
+    if (sc.isComplete) {
+      _cancelSceneTimer();
+      setState(() {
+        _sceneActive = false;
+      });
+      final gc = context.read<GameController>();
+      // Only play fireworks sound when completing the final scene of a screen
+      final playSound = _isFinalScene;
+      unawaited(gc.onPuzzleComplete(playSound: playSound));
+      _spawnConfetti();
+    } else {
+      // Update UI to show the newly found words
+      setState(() {});
+    }
+
+    _schedulePersistGameState();
+  }
+
+  String _firstLetterHint(Clue clue) {
+    final ans = clue.answer;
+    if (ans.isEmpty) return clue.label;
+    if (ans.length == 1) return ans;
+    final remaining = List.filled(ans.length - 1, '•').join(' ');
+    return remaining.isEmpty ? ans[0] : '${ans[0]} $remaining';
+  }
+
+  Widget _buildClapboardOverlay(BuildContext context) {
+    final themeColor = Theme.of(context).colorScheme.onSurface;
+    return Positioned.fill(
+      child: AbsorbPointer(
+        absorbing: true,
+        child: Container(
+          color: Colors.black.withOpacity(0.78),
+          alignment: Alignment.center,
+          child: TweenAnimationBuilder<double>(
+            key: ValueKey<String>('clapboard_${_clapboardLabel}_$_clapboardSubtitle'),
+            tween: Tween<double>(begin: 0.0, end: 1.0),
+            duration: const Duration(milliseconds: 320),
+            curve: Curves.easeOutCubic,
+            builder: (context, value, child) {
+              final scale = 0.82 + (0.18 * value);
+              return Opacity(
+                opacity: value.clamp(0.0, 1.0),
+                child: Transform.scale(
+                  scale: scale,
+                  child: child,
+                ),
+              );
+            },
+            child: _ClapboardCard(
+              label: _clapboardLabel,
+              subtitle: _clapboardSubtitle,
+              themeName: _themeTitle.isEmpty ? _currentSceneTheme : _themeTitle,
+              accentColor: themeColor,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildClueChip(
+    BuildContext context,
+    Clue clue,
+    int index,
+    SelectionController? controller,
+    bool isWide,
+    Color surface,
+    Color outline,
+    Color onSurface,
+  ) {
+    final sc = controller;
+    final answer = clue.answer.toUpperCase();
+  final isFound = sc != null && sc.found.any((f) => f.word == answer);
+  final color = sc?.wordColors[answer];
+  final hasPurchased = _revealedClues.contains(answer);
+  final isRevealed = !_isHiddenScene || hasPurchased || isFound;
+  final canReveal = _isHiddenScene && !hasPurchased && !isFound && _sceneActive && !_timeExpired;
+  final displayLabel = _isHiddenScene
+    ? (isFound
+      ? clue.label
+      : hasPurchased
+        ? _firstLetterHint(clue)
+        : clue.answer.length.toString())
+    : clue.label;
+    final textColor = isFound
+        ? Colors.white
+        : (isRevealed ? onSurface : Theme.of(context).colorScheme.primary);
+    final backgroundColor = isFound && color != null ? color : surface;
+    final borderColor = color ?? outline;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(7),
+      onTap: !canReveal
+          ? null
+          : () {
+              setState(() {
+                _revealedClues.add(answer);
+              });
+              final gc = context.read<GameController>();
+              unawaited(gc.feedback.playClue());
+              _schedulePersistGameState();
+            },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        padding: const EdgeInsets.symmetric(
+          vertical: 2.5,
+          horizontal: 4.5,
+        ),
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(7),
+          border: Border.all(
+            color: borderColor,
+            width: 1,
+          ),
+          boxShadow: isFound
+              ? [
+                  BoxShadow(
+                    color: (color ?? Colors.black).withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    spreadRadius: 0,
+                  ),
+                ]
+              : null,
+        ),
+        child: Text(
+          displayLabel,
+          style: TextStyle(
+            fontSize: (isWide ? 14 : 11) * 1.05,
+            fontWeight: FontWeight.w700,
+            color: textColor,
+            decoration: isFound ? TextDecoration.lineThrough : TextDecoration.none,
+          ),
+        ),
+      ),
+    );
+  }
+
   _Puzzle? _generateConstrainedPuzzle(int size, List<String> words) {
     final rnd = Random();
-    final sorted = List<String>.from(words.map((w) => w.toUpperCase()))
-      ..sort((a, b) => b.length.compareTo(a.length));
+    // Shuffle word list for more random placement order
+    final shuffled = List<String>.from(words.map((w) => w.toUpperCase()));
+    shuffled.shuffle(rnd);
 
     int attempts = 0;
     while (attempts < 200) {
@@ -352,7 +1332,8 @@ class _GameScreenState extends State<GameScreen> {
       final targetVert = pick[1];
       final targetDiagTotal = pick[2];
 
-      for (final word in sorted) {
+      for (final word in shuffled) {
+        // Build and shuffle direction choices for each word
         final choices = <_Dir>[];
         final placedHoriz = placedRight + placedLeft;
         final placedVert = placedDown + placedUp;
@@ -379,6 +1360,7 @@ class _GameScreenState extends State<GameScreen> {
             _Dir(1, -1),
           ]);
         }
+        // Shuffle direction choices for each word
         choices.shuffle(rnd);
 
         bool placed = false;
@@ -431,7 +1413,7 @@ class _GameScreenState extends State<GameScreen> {
             }
           }
         }
-        return _Puzzle(grid: grid, words: sorted);
+  return _Puzzle(grid: grid, words: shuffled);
       }
     }
     return null;
@@ -535,45 +1517,34 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _spawnConfetti() {
-    final rand = Random();
-    final colors = [
-      const Color(0xFFD81B60),
-      const Color(0xFFF4B400),
-      const Color(0xFF00BCD4),
-      const Color(0xFF8E24AA),
-      const Color(0xFFE53935),
-      const Color(0xFFFF7043),
-      const Color(0xFF1E88E5),
-      const Color(0xFF43A047),
-      const Color(0xFFFFC107),
-      const Color(0xFF7CB342),
-      const Color(0xFF6D4C41),
-      const Color(0xFF009688),
-    ];
-    _confetti = List.generate(28, (i) {
-      final x =
-          rand.nextDouble() * MediaQuery.of(context).size.width * 0.8 +
-          MediaQuery.of(context).size.width * 0.1;
-      final y =
-          rand.nextDouble() * MediaQuery.of(context).size.width * 0.6 + 48;
-      final size = rand.nextDouble() * 8 + 4;
-      return _ConfettiDot(
-        position: Offset(x, y),
-        size: size,
-        color: colors[i % colors.length],
-        velocity: Offset(rand.nextDouble() * 4 - 2, rand.nextDouble() * 4 + 2),
-        radius: size / 2,
-        rotation: rand.nextDouble() * 6.28,
-      );
-    });
+    if (!mounted) return;
+    
+    // Generate optimized confetti particles
+    _confetti = OptimizedConfetti.createParticles(MediaQuery.of(context).size);
     _showConfettiNotifier.value = true;
-    Future.delayed(const Duration(milliseconds: 900), () {
+    
+    // Start animation
+    _confettiController.reset();
+    _confettiController.forward();
+    
+    // Hide confetti after animation completes
+    Future.delayed(const Duration(milliseconds: 2100), () {
       if (mounted) _showConfettiNotifier.value = false;
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    // Show progress path screen if flag is set
+    if (_showProgressPath) {
+      return ProgressPathScreen(
+        allStages: _allStages,
+        currentStageIndex: _currentStageIndex,
+        currentSceneIndex: _currentSceneIndex,
+        onComplete: _onProgressPathComplete,
+      );
+    }
+    
     final surface = Theme.of(context).colorScheme.surface;
     final onSurface = Theme.of(context).colorScheme.onSurface;
     final outline = Theme.of(context).colorScheme.outline;
@@ -601,7 +1572,7 @@ class _GameScreenState extends State<GameScreen> {
             valueListenable: _scoreNotifier,
             builder: (context, score, child) {
               final settings = context.watch<FeedbackSettings>();
-              final canUseHints = settings.hintsEnabled && score >= 20 && _sel != null;
+              final canUseHints = settings.hintsEnabled && score >= 20 && _sel != null && _sceneActive && !_timeExpired;
               return FloatingActionButton.small(
                 onPressed: !canUseHints
                     ? null
@@ -617,6 +1588,7 @@ class _GameScreenState extends State<GameScreen> {
                         if (start != null) {
                           _scoreNotifier.value -= 15;
                           sc.showHintAt(start, durationMs: 1000);
+                          _schedulePersistGameState();
                         }
                       },
                 tooltip: canUseHints
@@ -632,184 +1604,224 @@ class _GameScreenState extends State<GameScreen> {
       ),
       body: PopScope(
         canPop: false,
-        child: Column(
+        child: Stack(
+          fit: StackFit.expand,
           children: [
-            // Theme name bar
-            Container(
-              width: double.infinity,
-              color: Theme.of(context).colorScheme.primaryContainer,
-              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-              child: Text(
-                _themeTitle.isEmpty ? 'Bolly Word Grid' : _themeTitle,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+            Column(
+              children: [
+                // Theme name bar
+                GestureDetector(
+              onTap: () {
+                // Triple-tap detection using timestamp
+                final now = DateTime.now();
+                if (_lastTapTime != null && now.difference(_lastTapTime!).inMilliseconds < 500) {
+                  _tapCount++;
+                  if (_tapCount >= 2) {
+                    _onThemeHeaderTap();
+                    _tapCount = 0;
+                  }
+                } else {
+                  _tapCount = 0;
+                }
+                _lastTapTime = now;
+              },
+              child: Container(
+                width: double.infinity,
+                color: Theme.of(context).colorScheme.primaryContainer,
+                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _themeTitle.isEmpty ? 'Bolly Word Grid' : _currentSceneTheme,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: Theme.of(context).colorScheme.onPrimaryContainer,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    if (_isTimedScene && _remainingSeconds != null) ...[
+                      const SizedBox(height: 6),
+                      _buildTimerDisplay(context),
+                      const SizedBox(height: 8),
+                      _buildFilmstripProgressBar(context),
+                      const SizedBox(height: 8),
+                      _buildLitFuse(context),
+                    ],
+                  ],
                 ),
-                textAlign: TextAlign.center,
               ),
             ),
-            // Key box with chips
-            Container(
-              width: double.infinity,
+                // Key box with chips
+                Container(
+                  width: double.infinity,
               color: surface,
               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Wrap(
-                    alignment: WrapAlignment.center,
-                    spacing: 6,
-                    runSpacing: 2,
-                    children: _clues.map((clue) {
-                      final sc = _sel;
-                      final isFound = sc != null && sc.found.any((f) => f.word == clue.answer.toUpperCase());
-                      final color = sc?.wordColors[clue.answer.toUpperCase()];
-                      return AnimatedContainer(
-                        duration: const Duration(milliseconds: 220),
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 3,
-                          horizontal: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isFound && color != null ? color : surface,
-                          borderRadius: BorderRadius.circular(7),
-                          border: Border.all(
-                            color: (color ?? outline),
-                            width: 1,
-                          ),
-                          boxShadow: isFound
-                              ? [
-                                  BoxShadow(
-                                    color: (color ?? Colors.black).withValues(alpha: 0.3),
-                                    blurRadius: 8,
-                                    spreadRadius: 0,
-                                  ),
-                                ]
-                              : null,
-                        ),
-                        child: Text(
-                          clue.label,
-                          style: TextStyle(
-                            fontSize: (isWide ? 14 : 11) * 1.15, // +15%
-                            fontWeight: FontWeight.w700,
-                            color: isFound ? Colors.white : onSurface,
-                            decoration: isFound ? TextDecoration.lineThrough : TextDecoration.none,
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
+                  // Rebuild the clue chips whenever selection/found state changes
+                  if (_sel != null)
+                    AnimatedBuilder(
+                      animation: _sel!,
+                      builder: (context, _) {
+                        final sc = _sel;
+                        return Wrap(
+                          alignment: WrapAlignment.center,
+                          spacing: 6,
+                          runSpacing: 2,
+                          children: _clues.asMap().entries.map((entry) {
+                            return _buildClueChip(
+                              context,
+                              entry.value,
+                              entry.key,
+                              sc,
+                              isWide,
+                              surface,
+                              outline,
+                              onSurface,
+                            );
+                          }).toList(),
+                        );
+                      },
+                    )
+                  else
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 6,
+                      runSpacing: 2,
+                      children: _clues.asMap().entries.map((entry) {
+                        return _buildClueChip(
+                          context,
+                          entry.value,
+                          entry.key,
+                          null,
+                          isWide,
+                          surface,
+                          outline,
+                          onSurface,
+                        );
+                      }).toList(),
+                    ),
                 ],
               ),
-            ),
-            // Selection preview
-            if (_sel != null && _sel!.hasActive && _sel!.activeString.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 6, bottom: 3),
-                child: Center(
-                  child: AnimatedScale(
-                    duration: const Duration(milliseconds: 120),
-                    scale: 1.0,
-                    child: AnimatedOpacity(
-                      key: ValueKey<String>('preview_${_sel!.activeString}'),
-                      duration: const Duration(milliseconds: 120),
-                      opacity: 1.0,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF2C2C2E),
-                          borderRadius: BorderRadius.circular(8),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.3),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
-                              spreadRadius: 0,
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 10,
-                              height: 29,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF1C1C1E),
-                                borderRadius: const BorderRadius.horizontal(left: Radius.circular(4)),
-                                border: Border.all(color: Colors.black38, width: 1),
-                              ),
-                              child: Center(
-                                child: Container(
-                                  width: 1.2,
-                                  height: 19,
-                                  color: Colors.white24,
+                ),
+                // Selection preview listens directly to SelectionController changes
+                if (_sel != null)
+                  AnimatedBuilder(
+                animation: _sel!,
+                builder: (context, _) {
+                  if (!_sel!.hasActive || _sel!.activeString.isNotEmpty == false) {
+                    return const SizedBox(height: 35);
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 6, bottom: 3),
+                    child: Center(
+                      child: AnimatedScale(
+                        duration: const Duration(milliseconds: 120),
+                        scale: 1.0,
+                        child: AnimatedOpacity(
+                          key: ValueKey<String>('preview_${_sel!.activeString}'),
+                          duration: const Duration(milliseconds: 120),
+                          opacity: 1.0,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2C2C2E),
+                              borderRadius: BorderRadius.circular(8),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.3),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 3),
+                                  spreadRadius: 0,
                                 ),
-                              ),
+                              ],
                             ),
-                            Row(
-                              children: _sel!.activeString.split('').map((letter) {
-                                return Container(
-                                  width: 22,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 10,
                                   height: 29,
-                                  margin: const EdgeInsets.symmetric(horizontal: 1),
                                   decoration: BoxDecoration(
-                                    color: _sel!.activeColor,
-                                    border: Border.all(
-                                      color: _sel!.activeColor!.computeLuminance() > 0.5 
-                                          ? Colors.black26 
-                                          : Colors.white24,
-                                      width: 1,
-                                    ),
+                                    color: const Color(0xFF1C1C1E),
+                                    borderRadius: const BorderRadius.horizontal(left: Radius.circular(4)),
+                                    border: Border.all(color: Colors.black38, width: 1),
                                   ),
                                   child: Center(
-                                    child: Text(
-                                      letter,
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w800,
-                                        color: Colors.white,
-                                        shadows: [
-                                          Shadow(
-                                            offset: Offset(0, 1),
-                                            blurRadius: 2,
-                                            color: Colors.black45,
-                                          ),
-                                        ],
-                                      ),
+                                    child: Container(
+                                      width: 1.2,
+                                      height: 19,
+                                      color: Colors.white24,
                                     ),
                                   ),
-                                );
-                              }).toList(),
-                            ),
-                            Container(
-                              width: 10,
-                              height: 29,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF1C1C1E),
-                                borderRadius: const BorderRadius.horizontal(right: Radius.circular(4)),
-                                border: Border.all(color: Colors.black38, width: 1),
-                              ),
-                              child: Center(
-                                child: Container(
-                                  width: 1.2,
-                                  height: 19,
-                                  color: Colors.white24,
                                 ),
-                              ),
+                                Row(
+                                  children: _sel!.activeString.split('').map((letter) {
+                                    return Container(
+                                      width: 22,
+                                      height: 29,
+                                      margin: const EdgeInsets.symmetric(horizontal: 1),
+                                      decoration: BoxDecoration(
+                                        color: _sel!.activeColor,
+                                        border: Border.all(
+                                          color: _sel!.activeColor!.computeLuminance() > 0.5
+                                              ? Colors.black26
+                                              : Colors.white24,
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: Center(
+                                        child: Text(
+                                          letter,
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w800,
+                                            color: Colors.white,
+                                            shadows: [
+                                              Shadow(
+                                                offset: Offset(0, 1),
+                                                blurRadius: 2,
+                                                color: Colors.black45,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                                Container(
+                                  width: 10,
+                                  height: 29,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF1C1C1E),
+                                    borderRadius: const BorderRadius.horizontal(right: Radius.circular(4)),
+                                    border: Border.all(color: Colors.black38, width: 1),
+                                  ),
+                                  child: Center(
+                                    child: Container(
+                                      width: 1.2,
+                                      height: 19,
+                                      color: Colors.white24,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ),
-              )
-            else
-              const SizedBox(height: 35),
-            const SizedBox(height: 8),
-            Expanded(
+                  );
+                },
+                  )
+                else
+                  const SizedBox(height: 35),
+                const SizedBox(height: 8),
+                Expanded(
               child: Center(
                 child: AspectRatio(
                   aspectRatio: 1,
@@ -818,12 +1830,24 @@ class _GameScreenState extends State<GameScreen> {
                       if (_sel == null || grid == null) {
                         return const Center(child: CircularProgressIndicator());
                       }
-                      return ValueListenableBuilder(
-                        valueListenable: _selectionNotifier,
-                        builder: (context, _, __) {
+                      
+                      // Calculate urgency level for visual effects
+                      final urgencyLevel = _isTimedScene && _remainingSeconds != null 
+                          ? _getUrgencyLevel(_remainingSeconds!)
+                          : 0;
+                      
+                      // Listen directly to SelectionController so grid and painter update on drag
+                      return AnimatedBuilder(
+                        animation: _sel!,
+                        builder: (context, __) {
                           return Stack(
                             fit: StackFit.expand,
                             children: [
+                              // Urgency glow effect
+                              if (urgencyLevel > 0)
+                                Positioned.fill(
+                                  child: _buildUrgencyGlowEffect(urgencyLevel),
+                                ),
                               Center(
                                 child: Container(
                                   margin: const EdgeInsets.all(12),
@@ -915,28 +1939,79 @@ class _GameScreenState extends State<GameScreen> {
                                   ),
                                 ),
                               ),
-                              _showConfetti ? _ConfettiLayer(dots: _confetti) : const SizedBox.shrink(),
-                              if (_sel?.isComplete == true)
+                              _showConfetti ? OptimizedConfettiLayer(
+                                particles: _confetti,
+                                animation: _confettiAnimation,
+                              ) : const SizedBox.shrink(),
+                              if (_timeExpired)
                                 Positioned.fill(
                                   child: Container(
-                                    color: Colors.black.withOpacity(0.35),
+                                    color: Colors.black.withOpacity(0.45),
                                     alignment: Alignment.center,
                                     child: Column(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         const Text(
-                                          'All names found! 🎉',
+                                          "Time's up!",
                                           style: TextStyle(
-                                            fontSize: 20,
+                                            fontSize: 22,
                                             fontWeight: FontWeight.w800,
                                             color: Colors.white,
                                           ),
                                         ),
                                         const SizedBox(height: 12),
                                         FilledButton.icon(
-                                          onPressed: _startingNewPuzzle ? null : _playAgain,
+                                          onPressed: _startingNewPuzzle ? null : _restartScene,
                                           icon: const Icon(Icons.refresh),
-                                          label: Text(_startingNewPuzzle ? 'Loading…' : 'Play again'),
+                                          label: Text(_startingNewPuzzle ? 'Loading…' : 'Retry scene'),
+                                          style: FilledButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                                            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                                            backgroundColor: Theme.of(context).colorScheme.errorContainer,
+                                            foregroundColor: Theme.of(context).colorScheme.onErrorContainer,
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                )
+                              else if (_sel?.isComplete == true)
+                                Positioned.fill(
+                                  child: Container(
+                                    color: Colors.black.withOpacity(0.55),
+                                    alignment: Alignment.center,
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (_isFinalScene && (_currentStageIndex + 1) >= _allStages.length) ...[
+                                          const Text(
+                                            'All screens complete! 🎉',
+                                            style: TextStyle(
+                                              fontSize: 20,
+                                              fontWeight: FontWeight.w800,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 12),
+                                        ] else
+                                          const SizedBox(height: 8),
+                                        FilledButton.icon(
+                                          onPressed: _startingNewPuzzle ? null : _advanceScene,
+                                          icon: Icon(
+                                            (_isFinalScene && (_currentStageIndex + 1) >= _allStages.length)
+                                                ? Icons.replay
+                                                : Icons.arrow_forward,
+                                          ),
+                                          label: Text(
+                                            _startingNewPuzzle
+                                                ? 'Loading…'
+                                                : (_isFinalScene
+                                                    ? ((_currentStageIndex + 1) >= _allStages.length
+                                                        ? 'Play again'
+                                                        : 'Next screen')
+                                                    : 'Next scene'),
+                                          ),
                                           style: FilledButton.styleFrom(
                                             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                                             textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
@@ -957,17 +2032,21 @@ class _GameScreenState extends State<GameScreen> {
                   ),
                 ),
               ),
-            ),
-            if (_isBannerAdLoaded && _bannerAd != null)
-              SafeArea(
-                top: false,
-                child: Container(
-                  alignment: Alignment.center,
-                  width: _bannerAd!.size.width.toDouble(),
-                  height: _bannerAd!.size.height.toDouble(),
-                  child: AdWidget(ad: _bannerAd!),
                 ),
-              ),
+                if (_isBannerAdLoaded && _bannerAd != null)
+                  SafeArea(
+                    top: false,
+                    child: Container(
+                      alignment: Alignment.center,
+                      width: _bannerAd!.size.width.toDouble(),
+                      height: _bannerAd!.size.height.toDouble(),
+                      child: AdWidget(ad: _bannerAd!),
+                    ),
+                  ),
+              ],
+            ),
+            if (_showClapboard)
+              _buildClapboardOverlay(context),
           ],
         ),
       ),
@@ -977,12 +2056,235 @@ class _GameScreenState extends State<GameScreen> {
   @override
   void dispose() {
     _bannerAd?.dispose();
+    _cancelSceneTimer();
+    // Release animation controller back to pool
+    AnimationManager().releaseController(_confettiController, id: 'confetti');
     // Dispose ValueNotifiers
     _scoreNotifier.dispose();
     _hintUnlockedNotifier.dispose(); 
     _showConfettiNotifier.dispose();
     _selectionNotifier.dispose();
+    _saveDebounce?.cancel();
+    _clapboardTimer?.cancel();
     super.dispose();
+  }
+}
+
+class _ClapboardCard extends StatefulWidget {
+  const _ClapboardCard({
+    required this.label,
+    required this.subtitle,
+    required this.themeName,
+    required this.accentColor,
+  });
+
+  final String label;
+  final String subtitle;
+  final String themeName;
+  final Color accentColor;
+
+  @override
+  State<_ClapboardCard> createState() => _ClapboardCardState();
+}
+
+class _ClapboardCardState extends State<_ClapboardCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _clapController;
+  late Animation<double> _clapAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _clapController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+
+    _clapAnimation = TweenSequence<double>([
+      // Quick clap down
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 0.0, end: -0.4)
+            .chain(CurveTween(curve: Curves.easeOut)),
+        weight: 20,
+      ),
+      // Quick clap up
+      TweenSequenceItem(
+        tween: Tween<double>(begin: -0.4, end: 0.0)
+            .chain(CurveTween(curve: Curves.easeIn)),
+        weight: 20,
+      ),
+      // Second clap down
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 0.0, end: -0.4)
+            .chain(CurveTween(curve: Curves.easeOut)),
+        weight: 20,
+      ),
+      // Second clap up and settle
+      TweenSequenceItem(
+        tween: Tween<double>(begin: -0.4, end: -0.09)
+            .chain(CurveTween(curve: Curves.easeInOut)),
+        weight: 40,
+      ),
+    ]).animate(_clapController);
+
+    // Start the clapping animation
+    _clapController.forward();
+  }
+
+  @override
+  void dispose() {
+    _clapController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final width = min(MediaQuery.of(context).size.width * 0.82, 360.0);
+
+    return SizedBox(
+      width: width,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            margin: const EdgeInsets.only(top: 42),
+            padding: const EdgeInsets.fromLTRB(28, 56, 28, 30),
+            decoration: BoxDecoration(
+              color: const Color(0xFF111111),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white, width: 3),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.45),
+                  blurRadius: 28,
+                  spreadRadius: 4,
+                  offset: const Offset(0, 22),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  widget.label,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 30,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 4,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  widget.subtitle,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 2.2,
+                    color: Colors.white.withOpacity(0.9),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Container(
+                  width: 120,
+                  height: 2,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  widget.themeName.toUpperCase(),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    letterSpacing: 1.8,
+                    fontWeight: FontWeight.w600,
+                    color: widget.accentColor.withOpacity(0.8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            top: -6,
+            child: AnimatedBuilder(
+              animation: _clapAnimation,
+              builder: (context, child) => _ClapboardHeader(
+                rotationAngle: _clapAnimation.value,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ClapboardHeader extends StatelessWidget {
+  const _ClapboardHeader({required this.rotationAngle});
+
+  final double rotationAngle;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 82,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            left: 26,
+            top: 14,
+            child: Container(
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(color: Colors.black, width: 2),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Align(
+            alignment: Alignment.center,
+            child: Transform.rotate(
+              angle: rotationAngle,
+              origin: const Offset(-50, -10),
+              child: Container(
+                height: 62,
+                margin: const EdgeInsets.symmetric(horizontal: 40),
+                decoration: BoxDecoration(
+                  color: Colors.black,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white, width: 3),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(13),
+                  child: Row(
+                    children: List.generate(8, (index) {
+                      final isLight = index.isOdd;
+                      return Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: isLight ? Colors.white : const Color(0xFF111111),
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -1036,51 +2338,50 @@ class _GridPainter extends CustomPainter {
   }
 }
 
-class _ConfettiDot {
-  final Offset position;
-  final Offset velocity;
-  final Color color;
-  final double radius;
-  final double rotation;
-  final double size;
-
-  _ConfettiDot({
-    required this.position,
-    required this.velocity,
-    required this.color,
-    required this.radius,
-    required this.rotation,
-    required this.size,
+/// Optimized confetti layer that uses efficient animation patterns
+class OptimizedConfettiLayer extends StatelessWidget {
+  const OptimizedConfettiLayer({
+    super.key,
+    required this.particles,
+    required this.animation,
   });
-}
 
-class _ConfettiLayer extends StatelessWidget {
-  const _ConfettiLayer({required this.dots});
-  final List<_ConfettiDot> dots;
+  final List<ConfettiParticle> particles;
+  final Animation<double> animation;
+
   @override
   Widget build(BuildContext context) {
     return IgnorePointer(
-      child: Stack(
-        children: [
-          for (final d in dots)
-            Positioned(
-              left: d.position.dx,
-              top: d.position.dy,
-              child: AnimatedOpacity(
-                duration: const Duration(milliseconds: 700),
-                opacity: 0.0,
-                curve: Curves.easeOut,
-                child: Container(
-                  width: d.size,
-                  height: d.size,
-                  decoration: BoxDecoration(
-                    color: d.color,
-                    shape: BoxShape.circle,
+      child: OptimizedAnimatedBuilder(
+        animation: animation,
+        builder: (context, progress, child) {
+          return Stack(
+            children: particles.map((particle) {
+              final position = particle.getPosition(progress);
+              final rotation = particle.getRotation(progress);
+              final opacity = (1.0 - progress).clamp(0.0, 1.0);
+
+              return Positioned(
+                left: position.dx,
+                top: position.dy,
+                child: Transform.rotate(
+                  angle: rotation * 3.14159 / 180,
+                  child: Opacity(
+                    opacity: opacity,
+                    child: Container(
+                      width: particle.size,
+                      height: particle.size,
+                      decoration: BoxDecoration(
+                        color: particle.color,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
-        ],
+              );
+            }).toList(),
+          );
+        },
       ),
     );
   }
@@ -1092,54 +2393,493 @@ class _GoldenTicket extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFFFD700), Color(0xFFFFA500), Color(0xFFFFD700)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-        border: Border.all(color: const Color(0xFFFFD700), width: 2),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            '$score',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
-              shadows: [
-                Shadow(
-                  offset: Offset(1, 1),
-                  blurRadius: 2,
-                  color: Colors.white.withOpacity(0.5),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 6),
-          const Text(
-            'tickets',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Colors.black,
-            ),
-          ),
-        ],
-      ),
+    const gradient = LinearGradient(
+      colors: [Color(0xFFFFD700), Color(0xFFFFA500), Color(0xFFFFD700)],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
     );
+    
+    const ticketGradient = LinearGradient(
+      colors: [
+        Color(0xFFFFF5CC), // Light cream
+        Color(0xFFFFE8A3), // Golden yellow
+        Color(0xFFFFF5CC), // Light cream
+      ],
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+    );
+    
+    const sheen = LinearGradient(
+      colors: [Color(0x66FFFFFF), Color(0x00FFFFFF)],
+      begin: Alignment.topLeft,
+      end: Alignment(0.4, 0.4),
+    );
+
+    const double baseScale = 0.6; // Compact but legible ticket scale
+    const double lengthFactor = 1.25; // Extend ticket length by 25%
+    const double baseWidth = 160;
+    const double baseHeight = 80; // Increased from 70 to support 4-digit scores
+    const double baseCornerRadius = 6;
+    const double baseNotchRadius = 12;
+    const double basePerforationOffset = 28;
+    const double baseHeaderFont = 10;
+    const double baseScoreFont = 28;
+    const double baseLabelFont = 8;
+    const double baseSerialFont = 8;
+    const double baseHorizontalGap = 6;
+    const double baseVerticalGap = 4; // Increased from 2 to provide more spacing
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double desiredWidth = baseWidth * lengthFactor * baseScale;
+        final double maxWidth = constraints.maxWidth.isFinite ? constraints.maxWidth : desiredWidth;
+        final double scaleFactor = desiredWidth > 0
+            ? baseScale * min(1.0, maxWidth / desiredWidth)
+            : baseScale;
+
+        final double width = (baseWidth * lengthFactor * scaleFactor).ceilToDouble();
+        final double height = (baseHeight * scaleFactor).ceilToDouble();
+        final double cornerR = baseCornerRadius * scaleFactor;
+        final double notchR = baseNotchRadius * scaleFactor;
+
+        final double headerFontSize = baseHeaderFont * scaleFactor;
+        final double scoreFontSize = baseScoreFont * scaleFactor;
+        final double labelFontSize = baseLabelFont * scaleFactor;
+        final double serialFontSize = baseSerialFont * scaleFactor;
+        final double headerLetterSpacing = max(0.5, 2 * scaleFactor);
+        final double labelLetterSpacing = max(0.3, 1 * scaleFactor);
+        final double serialLetterSpacing = max(0.4, 1 * scaleFactor);
+        final double horizontalGap = max(3.0, baseHorizontalGap * scaleFactor);
+        final double verticalGap = max(1.0, baseVerticalGap * scaleFactor);
+        final double perforationOffset = basePerforationOffset * scaleFactor * lengthFactor;
+        final double perforationWidth = max(1.0, 2 * scaleFactor);
+        final Offset shadowOffset = Offset(1 * scaleFactor, 1 * scaleFactor);
+        final String ticketLabel = score == 1 ? 'TICKET' : 'TICKETS';
+
+        return SizedBox(
+          width: width,
+          height: height,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Shadow layer
+              Transform.translate(
+                offset: Offset(0, 2 * scaleFactor),
+                child: ClipPath(
+                  clipper: _TicketClipper(cornerRadius: cornerR, notchRadius: notchR),
+                  child: Container(
+                    width: width,
+                    height: height,
+                    color: Colors.black.withOpacity(0.2),
+                  ),
+                ),
+              ),
+
+              // Ticket shape with gradient
+              ClipPath(
+                clipper: _TicketClipper(cornerRadius: cornerR, notchRadius: notchR),
+                child: Container(
+                  width: width,
+                  height: height,
+                  decoration: const BoxDecoration(
+                    gradient: ticketGradient,
+                  ),
+                  child: Stack(
+                    children: [
+                      // Vintage pattern background
+                      Positioned.fill(
+                        child: CustomPaint(
+                          painter: _TicketPatternPainter(),
+                        ),
+                      ),
+
+                      // Content
+                      Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            // "ADMIT ONE" text
+                            Text(
+                              'ADMIT ONE',
+                              style: TextStyle(
+                                fontSize: headerFontSize,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: headerLetterSpacing,
+                                color: Colors.brown.shade800,
+                              ),
+                            ),
+                            SizedBox(height: verticalGap),
+                            // Score display
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Text(
+                                  '$score',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: scoreFontSize,
+                                    fontWeight: FontWeight.w900,
+                                    color: Colors.brown.shade900,
+                                    shadows: [
+                                      Shadow(
+                                        offset: shadowOffset,
+                                        blurRadius: 0,
+                                        color: Colors.brown.shade400,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                SizedBox(width: horizontalGap),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'GOLDEN',
+                                      style: TextStyle(
+                                        fontSize: labelFontSize,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: labelLetterSpacing,
+                                        height: 1,
+                                        color: Colors.brown.shade700,
+                                      ),
+                                    ),
+                                    Text(
+                                      ticketLabel,
+                                      style: TextStyle(
+                                        fontSize: labelFontSize,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: labelLetterSpacing,
+                                        height: 1,
+                                        color: Colors.brown.shade700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: verticalGap),
+                            // Serial number
+                            Text(
+                              'No. ${(score * 1337 % 999999).toString().padLeft(6, '0')}',
+                              style: TextStyle(
+                                fontSize: serialFontSize,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.brown.shade600,
+                                letterSpacing: serialLetterSpacing,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Perforated edge lines
+                      Positioned(
+                        left: perforationOffset,
+                        top: 0,
+                        bottom: 0,
+                        child: CustomPaint(
+                          size: Size(perforationWidth, double.infinity),
+                          painter: _PerforatedLinePainter(),
+                        ),
+                      ),
+                      Positioned(
+                        right: perforationOffset,
+                        top: 0,
+                        bottom: 0,
+                        child: CustomPaint(
+                          size: Size(perforationWidth, double.infinity),
+                          painter: _PerforatedLinePainter(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Sheen overlay
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: ClipPath(
+                    clipper: _TicketClipper(cornerRadius: cornerR, notchRadius: notchR),
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        gradient: sheen,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _TicketClipper extends CustomClipper<Path> {
+  final double cornerRadius;
+  final double notchRadius;
+  const _TicketClipper({required this.cornerRadius, required this.notchRadius});
+
+  @override
+  Path getClip(Size size) {
+    final r = cornerRadius;
+    final nr = notchRadius;
+    final w = size.width;
+    final h = size.height;
+    
+    final path = Path();
+    
+    // Start at top-left corner after radius
+    path.moveTo(r, 0);
+    
+    // Top edge with scalloped pattern
+    const scallops = 8;
+    final scW = (w - 2 * r) / scallops;
+    for (int i = 0; i < scallops; i++) {
+      final x1 = r + i * scW;
+      final x2 = x1 + scW / 2;
+      final x3 = x1 + scW;
+      path.quadraticBezierTo(x2, -2, x3, 0);
+    }
+    
+    // Top-right corner
+    path.arcToPoint(Offset(w, r), radius: Radius.circular(r));
+    
+    // Right edge down to notch start
+    path.lineTo(w, h / 2 - nr);
+    
+    // Right notch (larger semi-circle inward)
+    path.arcToPoint(
+      Offset(w, h / 2 + nr),
+      radius: Radius.circular(nr),
+      clockwise: false,
+    );
+    
+    // Right edge to bottom-right corner
+    path.lineTo(w, h - r);
+    
+    // Bottom-right corner
+    path.arcToPoint(Offset(w - r, h), radius: Radius.circular(r));
+    
+    // Bottom edge with scalloped pattern
+    for (int i = scallops - 1; i >= 0; i--) {
+      final x1 = r + (i + 1) * scW;
+      final x2 = x1 - scW / 2;
+      final x3 = x1 - scW;
+      path.quadraticBezierTo(x2, h + 2, x3, h);
+    }
+    
+    // Bottom-left corner
+    path.arcToPoint(Offset(0, h - r), radius: Radius.circular(r));
+    
+    // Left edge up to notch start
+    path.lineTo(0, h / 2 + nr);
+    
+    // Left notch
+    path.arcToPoint(
+      Offset(0, h / 2 - nr),
+      radius: Radius.circular(nr),
+      clockwise: false,
+    );
+    
+    // Left edge to top-left corner
+    path.lineTo(0, r);
+    
+    // Top-left corner
+    path.arcToPoint(Offset(r, 0), radius: Radius.circular(r));
+    
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(covariant _TicketClipper oldClipper) {
+    return oldClipper.cornerRadius != cornerRadius || oldClipper.notchRadius != notchRadius;
+  }
+}
+
+class _TicketBorderPainter extends CustomPainter {
+  final double cornerRadius;
+  final double notchRadius;
+  final double strokeWidth;
+  final Color color;
+  const _TicketBorderPainter({
+    required this.cornerRadius,
+    required this.notchRadius,
+    required this.color,
+    this.strokeWidth = 2,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = _TicketClipper(cornerRadius: cornerRadius, notchRadius: notchRadius).getClip(size);
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..color = color;
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _TicketBorderPainter oldDelegate) {
+    return oldDelegate.cornerRadius != cornerRadius ||
+        oldDelegate.notchRadius != notchRadius ||
+        oldDelegate.strokeWidth != strokeWidth ||
+        oldDelegate.color != color;
+  }
+}
+
+// Ticket pattern painter for vintage look
+class _TicketPatternPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.brown.withOpacity(0.05)
+      ..strokeWidth = 1
+      ..style = PaintingStyle.stroke;
+    
+    // Draw subtle diagonal lines for vintage texture
+    const spacing = 4.0;
+    for (double i = -size.height; i < size.width + size.height; i += spacing) {
+      canvas.drawLine(
+        Offset(i, 0),
+        Offset(i + size.height, size.height),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// Perforated line painter
+class _PerforatedLinePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.brown.withOpacity(0.3)
+      ..strokeWidth = 1;
+    
+    const dashHeight = 3.0;
+    const dashSpace = 2.0;
+    double y = 0;
+    
+    while (y < size.height) {
+      canvas.drawLine(
+        Offset(0, y),
+        Offset(0, y + dashHeight),
+        paint,
+      );
+      y += dashHeight + dashSpace;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// Circular progress painter for timer ring
+class _CircularProgressPainter extends CustomPainter {
+  final double progress;
+  final Color color;
+  final Color backgroundColor;
+  final double strokeWidth;
+
+  _CircularProgressPainter({
+    required this.progress,
+    required this.color,
+    required this.backgroundColor,
+    this.strokeWidth = 4.0,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (size.width - strokeWidth) / 2;
+
+    // Background circle
+    final bgPaint = Paint()
+      ..color = backgroundColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawCircle(center, radius, bgPaint);
+
+    // Progress arc
+    final progressPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+
+    const startAngle = -pi / 2; // Start at top
+    final sweepAngle = 2 * pi * progress;
+
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      startAngle,
+      sweepAngle,
+      false,
+      progressPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _CircularProgressPainter oldDelegate) {
+    return oldDelegate.progress != progress ||
+        oldDelegate.color != color ||
+        oldDelegate.backgroundColor != backgroundColor ||
+        oldDelegate.strokeWidth != strokeWidth;
+  }
+}
+
+// Filmstrip painter for movie-themed progress bar
+class _FilmstripPainter extends CustomPainter {
+  final Color color;
+
+  _FilmstripPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    const holeWidth = 3.0;
+    const holeHeight = 5.0;
+    const spacing = 8.0;
+
+    // Draw perforations on top and bottom edges
+    for (double x = spacing; x < size.width; x += spacing) {
+      // Top perforations
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(x - holeWidth / 2, 1, holeWidth, holeHeight),
+          const Radius.circular(1),
+        ),
+        paint,
+      );
+      // Bottom perforations
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(x - holeWidth / 2, size.height - holeHeight - 1, holeWidth, holeHeight),
+          const Radius.circular(1),
+        ),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _FilmstripPainter oldDelegate) {
+    return oldDelegate.color != color;
   }
 }
 

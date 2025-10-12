@@ -7,7 +7,11 @@
         <!-- AdMob App ID (Test). Replace with your own before release. -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-3940256099942544~3347511713"/>
+            android:value="ca-app-pub-4369020643957506~1567002882"/>
+        <!-- Google Play Games Services configuration. Replace the string resource with your real app id. -->
+        <meta-data
+            android:name="com.google.android.gms.games.APP_ID"
+            android:value="@string/play_games_app_id" />
         <activity
             android:name="com.moviemasala.wordsearch.MainActivity"
             android:exported="true"

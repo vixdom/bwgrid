@@ -74,4 +74,16 @@ class FeedbackSettings extends ChangeNotifier {
     theme = t;
     notifyListeners();
   }
+
+  void resetToDefaults() {
+    soundEnabled = true;
+    volume = 0.35;
+    hapticsEnabled = true;
+    hapticStrength = HapticStrength.medium;
+    playInSilentMode = true;
+    hintsEnabled = true;
+    reduceMotionOverride = null;
+    theme = AppTheme.hirani;
+    notifyListeners();
+  }
 }

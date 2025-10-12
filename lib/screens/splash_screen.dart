@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-// import 'package:google_fonts/google_fonts';
+// import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../services/feedback_controller.dart';
 import '../services/game_controller.dart';
 import '../services/achievements_service.dart';
+import '../services/animation_manager.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -18,31 +19,32 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   late Animation<double> _scaleAnimation;
   String _loadingText = 'Loading...';
 
-  @override
+    @override
   void initState() {
     super.initState();
     debugPrint('[Splash] initState()');
 
-    _animationController = AnimationController(
+    _animationController = AnimationManager().getController(
       duration: const Duration(milliseconds: 2000),
       vsync: this,
+      id: 'splash',
     );
 
-    _fadeAnimation = Tween<double>(
+    _fadeAnimation = AnimationManager().createAnimation(
+      controller: _animationController,
       begin: 0.0,
       end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: const Interval(0.0, 0.6, curve: Curves.easeIn),
-    ));
+      curveName: 'easeInOut',
+      id: 'splash_fade',
+    );
 
-    _scaleAnimation = Tween<double>(
+    _scaleAnimation = AnimationManager().createAnimation(
+      controller: _animationController,
       begin: 0.8,
       end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: const Interval(0.2, 0.8, curve: Curves.elasticOut),
-    ));
+      curveName: 'elasticOut',
+      id: 'splash_scale',
+    );
 
     _animationController.forward();
 
@@ -99,7 +101,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
   @override
   void dispose() {
-    _animationController.dispose();
+    AnimationManager().releaseController(_animationController, id: 'splash');
     super.dispose();
   }
 

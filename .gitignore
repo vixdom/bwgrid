@@ -167,3 +167,4 @@ app.*.symbols
 # secrets
 android/key.properties
 keystore/*.jks
+commandlinetools.zip

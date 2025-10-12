@@ -18,14 +18,11 @@ class GameController with ChangeNotifier {
 
   // Called when a new cell is added to the current selection path.
   Future<void> onNewCellSelected() async {
-    debugPrint('onNewCellSelected - sound:${settings.soundEnabled}, haptics:${settings.hapticsEnabled}');
     try {
       if (settings.soundEnabled) {
-        debugPrint('Playing tick sound');
         await feedback.playTick();
       }
       if (settings.hapticsEnabled) {
-        debugPrint('Playing haptic feedback');
         await feedback.hapticSelectLetter();
       }
     } catch (e) {
@@ -35,14 +32,11 @@ class GameController with ChangeNotifier {
 
   // Call when user completes a valid word.
   Future<void> onWordFound() async {
-    debugPrint('onWordFound - sound:${settings.soundEnabled}, haptics:${settings.hapticsEnabled}');
     try {
       if (settings.soundEnabled) {
-        debugPrint('Playing word found sound');
         await feedback.playWordFound();
       }
       if (settings.hapticsEnabled) {
-  debugPrint('Playing success haptic');
   // Spec: Correct word -> success notification haptic
   await feedback.hapticSuccess();
       }
@@ -58,14 +52,11 @@ class GameController with ChangeNotifier {
 
   // Call on invalid selection or submit.
   Future<void> onInvalid() async {
-    debugPrint('onInvalid - sound:${settings.soundEnabled}, haptics:${settings.hapticsEnabled}');
     try {
       if (settings.soundEnabled) {
-        debugPrint('Playing invalid sound');
         await feedback.playInvalid();
       }
       if (settings.hapticsEnabled) {
-        debugPrint('Playing light haptic');
         // Spec: Incorrect -> lightImpact
         await _hapticForStrength(HapticStrength.light);
       }
@@ -75,10 +66,10 @@ class GameController with ChangeNotifier {
   }
 
   // Call when all words are found
-  Future<void> onPuzzleComplete() async {
+  Future<void> onPuzzleComplete({bool playSound = true}) async {
     if (_celebrated) return; // avoid multiple triggers
     _celebrated = true;
-    if (settings.soundEnabled) {
+    if (settings.soundEnabled && playSound) {
       await feedback.playFireworks(maxDuration: const Duration(seconds: 7));
     }
     if (settings.hapticsEnabled) {
