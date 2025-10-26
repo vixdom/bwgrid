@@ -50,7 +50,7 @@ class StagePlaybook {
 
   static StageDefinition stageOne() => const StageDefinition(
         index: 1,
-        name: 'Screen 1',
+    name: 'Nostalgia',
         themeName: 'Nostalgia',
         scenes: [
           SceneDefinition(
@@ -74,7 +74,7 @@ class StagePlaybook {
 
   static StageDefinition stageTwo() => const StageDefinition(
         index: 2,
-        name: 'Screen 2',
+    name: '80s and 90s',
         themeName: '80s and 90s',
         scenes: [
           SceneDefinition(
@@ -98,7 +98,7 @@ class StagePlaybook {
 
   static StageDefinition stageThree() => const StageDefinition(
         index: 3,
-        name: 'Screen 3',
+    name: 'Millenial Stars',
         themeName: 'Millenial Stars',
         scenes: [
           SceneDefinition(
@@ -122,7 +122,7 @@ class StagePlaybook {
 
   static StageDefinition stageFour() => const StageDefinition(
         index: 4,
-        name: 'Screen 4',
+    name: 'GenZ Stars',
         themeName: 'GenZ Stars',
         scenes: [
           SceneDefinition(
@@ -146,7 +146,7 @@ class StagePlaybook {
 
   static StageDefinition stageFive() => const StageDefinition(
         index: 5,
-        name: 'Screen 5',
+    name: 'Golden Voices',
         themeName: 'Golden Voices',
         scenes: [
           SceneDefinition(

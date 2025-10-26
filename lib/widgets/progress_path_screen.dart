@@ -4,6 +4,7 @@ import '../models/stage_scene.dart';
 
 /// Displays the player's progress through all screens/stages
 /// Shows completed, current, and upcoming screens with animated transitions
+/// Allows selecting any completed screen to replay from scene 1
 class ProgressPathScreen extends StatefulWidget {
   const ProgressPathScreen({
     super.key,
@@ -11,12 +12,14 @@ class ProgressPathScreen extends StatefulWidget {
     required this.currentStageIndex,
     required this.currentSceneIndex,
     required this.onComplete,
+    this.onScreenSelected,
   });
 
   final List<StageDefinition> allStages;
   final int currentStageIndex;
   final int currentSceneIndex;
   final VoidCallback onComplete;
+  final void Function(int stageIndex)? onScreenSelected;
 
   @override
   State<ProgressPathScreen> createState() => _ProgressPathScreenState();
@@ -49,10 +52,13 @@ class _ProgressPathScreenState extends State<ProgressPathScreen>
     });
   }
 
-  void _dismissScreen() async {
+  void _dismissScreen({int? selectedStageIndex}) async {
     if (_controller.isAnimating) return;
     await _controller.reverse();
     if (mounted) {
+      if (selectedStageIndex != null && widget.onScreenSelected != null) {
+        widget.onScreenSelected!(selectedStageIndex);
+      }
       widget.onComplete();
     }
   }
@@ -87,13 +93,17 @@ class _ProgressPathScreenState extends State<ProgressPathScreen>
                 // Header
                 Padding(
                   padding: const EdgeInsets.all(20),
-                  child: Text(
-                    'Your Journey',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w900,
-                      color: Theme.of(context).colorScheme.onSurface,
-                      letterSpacing: 1.2,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      'BollyWord Multiplex',
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w900,
+                        color: Theme.of(context).colorScheme.onSurface,
+                        letterSpacing: 1.2,
+                      ),
                     ),
                   ),
                 ),
@@ -102,9 +112,14 @@ class _ProgressPathScreenState extends State<ProgressPathScreen>
                 Expanded(
                   child: ListView.builder(
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                    itemCount: widget.allStages.length,
+                    itemCount: widget.allStages.length + 1, // +1 for "coming soon" message
                     itemBuilder: (context, index) {
-                      return _buildScreenCard(index);
+                      if (index < widget.allStages.length) {
+                        return _buildScreenCard(index);
+                      } else {
+                        // "More screens coming soon" message after last screen
+                        return _buildComingSoonCard();
+                      }
                     },
                   ),
                 ),
@@ -152,6 +167,7 @@ class _ProgressPathScreenState extends State<ProgressPathScreen>
     final isPast = index < widget.currentStageIndex;
     final isCurrent = index == widget.currentStageIndex;
     final isFuture = index > widget.currentStageIndex;
+    final isClickable = isPast || isCurrent; // Can click completed or current screen
     
     // Calculate completed scenes for this stage
     int completedScenes = 0;
@@ -174,7 +190,19 @@ class _ProgressPathScreenState extends State<ProgressPathScreen>
           ),
         );
       },
-      child: Container(
+      child: GestureDetector(
+        onTap: isClickable
+            ? () {
+                // Show confirmation dialog for completed screens
+                if (isPast) {
+                  _showReplayConfirmation(index);
+                } else {
+                  // Current screen - just dismiss and continue
+                  _dismissScreen();
+                }
+              }
+            : null,
+        child: Container(
         margin: const EdgeInsets.only(bottom: 24),
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
@@ -317,18 +345,122 @@ class _ProgressPathScreenState extends State<ProgressPathScreen>
               ),
             ),
             
-            // Lock icon for future screens
+            // Lock icon for future screens or replay icon for completed
             if (isFuture)
               Icon(
                 Icons.lock_outline,
                 color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
                 size: 28,
+              )
+            else if (isPast)
+              Icon(
+                Icons.replay,
+                color: Theme.of(context).colorScheme.primary.withOpacity(0.7),
+                size: 28,
               ),
           ],
+        ),
         ),
       ),
     );
   }
 
+  Future<void> _showReplayConfirmation(int stageIndex) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Replay Screen?'),
+        content: Text(
+          'Do you want to replay Screen ${stageIndex + 1} from Scene 1?\n\n'
+          'Your current progress will be saved.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Replay'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      _dismissScreen(selectedStageIndex: stageIndex);
+    }
+  }
+
+  Widget _buildComingSoonCard() {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: Duration(milliseconds: 400 + (widget.allStages.length * 100)),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, 20 * (1 - value)),
+            child: child,
+          ),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 24),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface.withOpacity(0.5),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.movie_outlined,
+              size: 48,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'More screens coming soon',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'New challenges and themes on the way!',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
 }

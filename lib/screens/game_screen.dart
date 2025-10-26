@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../ads/ads_config.dart';
 import '../services/game_controller.dart';
+import '../services/interstitial_ad_manager.dart';
 import '../controllers/selection_controller.dart';
 import '../widgets/film_reel_painter.dart';
 import '../widgets/progress_path_screen.dart';
@@ -149,10 +150,8 @@ class _GameScreenState extends State<GameScreen>
   Timer? _clapboardTimer;
   final GamePersistence _gamePersistence = const GamePersistence();
   bool _showProgressPath = false;
-  
-  // Triple-tap detection
-  DateTime? _lastTapTime;
-  int _tapCount = 0;
+  bool _hasShownHintReminder = false;
+  bool _dangerHapticTriggered = false;
 
   @override
   void initState() {
@@ -197,6 +196,12 @@ class _GameScreenState extends State<GameScreen>
       ),
     );
     _bannerAd!.load();
+
+  // Warm up an interstitial at startup so it's likely ready at the first break
+  final interstitialUnit = Platform.isAndroid
+    ? AdsConfig.androidInterstitial
+    : AdsConfig.iosInterstitial;
+  InterstitialAdManager.instance.load(adUnitId: interstitialUnit);
   }
 
   // Grid-local gesture mapping using inner constraints
@@ -244,7 +249,7 @@ class _GameScreenState extends State<GameScreen>
     
     if (found != null) {
       // Update score using ValueNotifier
-      _scoreNotifier.value += 10;
+      _changeScore(10);
       await gc.onWordFound();
       if (!_hintUnlocked && score >= 20) {
         _hintUnlockedNotifier.value = true;
@@ -260,7 +265,7 @@ class _GameScreenState extends State<GameScreen>
         setState(() {
           _sceneActive = false;
         });
-        // Only play fireworks sound when completing the final scene of a screen
+        // Always play fireworks/applause when completing scene 3
         final playSound = _isFinalScene;
         await gc.onPuzzleComplete(playSound: playSound);
         _spawnConfetti();
@@ -295,6 +300,39 @@ class _GameScreenState extends State<GameScreen>
     return finalScene;
   }
 
+  String get _sceneHeaderLabel {
+    final screenIndex = _stageDefinition.index;
+    final rawTheme = (_stageTheme?.name ?? _stageDefinition.themeName).trim();
+    final themeName = rawTheme.isEmpty ? 'Bolly Word Grid' : rawTheme;
+    final sceneNumber = _currentScene.index;
+    final result = 'Screen $screenIndex: $themeName Scene $sceneNumber';
+    debugPrint('🎬 _sceneHeaderLabel: _currentSceneIndex=$_currentSceneIndex, sceneNumber=$sceneNumber, result=$result');
+    return result;
+  }
+
+  void _changeScore(int delta, {bool allowHintReminder = true}) {
+    final prev = _scoreNotifier.value;
+    final next = max(0, prev + delta);
+    final crossedThreshold = delta > 0 && allowHintReminder && !_hasShownHintReminder && prev < 20 && next >= 20;
+    _scoreNotifier.value = next;
+
+    if (crossedThreshold) {
+      _hasShownHintReminder = true;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Hints unlock at 20 tickets. Tap the ? icon any time you need help.'),
+            duration: Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } else if (!_hasShownHintReminder && next >= 20) {
+      // Respect future increments that begin above the threshold without spamming toasts.
+      _hasShownHintReminder = true;
+    }
+  }
+
   Future<void> _restoreOrInitializeStage() async {
     final saved = await _gamePersistence.load();
     if (!mounted) return;
@@ -323,9 +361,20 @@ class _GameScreenState extends State<GameScreen>
       return false;
     }
 
+    final expectedTheme = _stageDefinition.themeName.trim().toLowerCase();
+    final savedTheme = state.themeName.trim().toLowerCase();
+    if (savedTheme != expectedTheme) {
+      debugPrint('🎬 _restoreSavedGame: Theme mismatch (saved=$savedTheme, expected=$expectedTheme) → rejecting save');
+      return false;
+    }
+
     final dict = _themeDictionary ??
         await ThemeDictionary.loadFromAsset('assets/key and themes.txt');
     final theme = dict.findByName(state.themeName);
+    if (theme.name.trim().toLowerCase() != expectedTheme) {
+      debugPrint('🎬 _restoreSavedGame: Theme lookup mismatch (found=${theme.name}, expected=$expectedTheme) → rejecting save');
+      return false;
+    }
 
     final rows = <List<String>>[];
     for (final row in state.gridRows) {
@@ -364,12 +413,15 @@ class _GameScreenState extends State<GameScreen>
       _selectionNotifier.value = controller;
       _scoreNotifier.value = state.score;
       _hintUnlockedNotifier.value = state.hintUnlocked;
-    _sceneDurationSeconds = state.sceneDurationSeconds ??
-      _sceneSchedule[state.sceneIndex].timeLimit?.inSeconds;
+      _sceneDurationSeconds = state.sceneDurationSeconds ??
+          _sceneSchedule[state.sceneIndex].timeLimit?.inSeconds;
       _remainingSeconds = state.remainingSeconds ?? _sceneDurationSeconds;
       _timeExpired = state.timeExpired;
       _sceneActive = state.sceneActive && !_timeExpired && !(controller.isComplete);
       _metronomeBeat = 0;
+      _showProgressPath = true;
+      _hasShownHintReminder = state.score >= 20;
+      _dangerHapticTriggered = false;
     });
 
     _restoringFromSave = false;
@@ -441,6 +493,7 @@ class _GameScreenState extends State<GameScreen>
     for (var i = 0; i < _sceneSchedule.length; i++) {
       debugPrint('🎬   Scene $i: ${_sceneSchedule[i].title} (${_sceneSchedule[i].mode})');
     }
+    _cancelSceneTimer();
     final dict = await ThemeDictionary.loadFromAsset(
       'assets/key and themes.txt',
     );
@@ -449,7 +502,16 @@ class _GameScreenState extends State<GameScreen>
       _themeDictionary = dict;
       _stageTheme = theme;
       _currentSceneIndex = 0;
-      _usedAnswers.clear();
+      grid = null;
+      _sel = null;
+      _selectionNotifier.value = null;
+      _clues = const [];
+      _revealedClues.clear();
+      _sceneActive = false;
+      _timeExpired = false;
+      _remainingSeconds = null;
+      _sceneDurationSeconds = null;
+      _dangerHapticTriggered = false;
       _showProgressPath = true; // Show path at game start
     });
     // Don't load puzzle yet - wait for progress path to be dismissed
@@ -463,49 +525,54 @@ class _GameScreenState extends State<GameScreen>
     final theme = _stageTheme ?? dict.findByName(_stageDefinition.themeName);
     _stageTheme = theme;
 
-    final exclude = _usedAnswers.toSet();
-    var clues = theme.pickClues(10, maxLen: gridSize, exclude: exclude);
-    
-    // If we don't have enough unique clues, we need to handle it gracefully
+    final exclude = _usedAnswers.toList(growable: false);
+    var clues = theme.pickClues(10, maxLen: gridSize, exclude: exclude.toSet());
+
     if (clues.length < 10) {
       debugPrint('⚠️ Only found ${clues.length} unused clues. Used so far: ${_usedAnswers.length} clues');
       debugPrint('⚠️ Used clues: ${_usedAnswers.join(", ")}');
-      
-      // Check total available clues
+
       final totalClues = theme.pickClues(100, maxLen: gridSize);
       debugPrint('⚠️ Theme has ${totalClues.length} total clues available (max length $gridSize)');
-      
-      if (totalClues.length < 30) {
-        // Theme doesn't have enough clues for 3 scenes (30 clues needed)
-        debugPrint('⚠️ WARNING: Theme only has ${totalClues.length} clues but needs 30 for 3 scenes!');
-        debugPrint('⚠️ Moving to next stage to avoid repetitions');
-        
-        // Move to next stage instead of reusing clues
-        if (_currentStageIndex + 1 < _allStages.length) {
-          _currentStageIndex++;
-          await _initializeStage();
-          await _loadPuzzle();
-          return;
-        } else {
-          // If we're at the last stage, restart from the beginning
-          debugPrint('⚠️ Completed all stages, restarting from beginning');
-          _currentStageIndex = 0;
-          await _initializeStage();
-          await _loadPuzzle();
-          return;
+
+      // Gradually relax the "recently used" exclusion so we always get something for Scene 3
+      const keepRecentOptions = [10, 6, 3, 0];
+      for (final keepRecent in keepRecentOptions) {
+        if (_usedAnswers.length <= keepRecent) continue;
+        final recentlyUsed = _usedAnswers
+            .skip(_usedAnswers.length - keepRecent)
+            .toSet();
+        clues = theme.pickClues(10, maxLen: gridSize, exclude: recentlyUsed);
+        debugPrint('⚠️ Reusing older clues while avoiding $keepRecent most recent. Got ${clues.length} clues');
+        if (clues.length >= 10) {
+          break;
         }
       }
-      
-      // If theme has enough clues but we've used many, try to reuse oldest ones
-      // Remove oldest used answers to get fresh clues (keep most recent to avoid immediate repeats)
-      final keepRecent = _usedAnswers.length > 10 ? 10 : 0;
-      if (keepRecent > 0) {
-        final recentlyUsed = _usedAnswers.skip(_usedAnswers.length - keepRecent).toSet();
-        clues = theme.pickClues(10, maxLen: gridSize, exclude: recentlyUsed);
-        debugPrint('⚠️ Reusing older clues while avoiding ${keepRecent} most recent. Got ${clues.length} clues');
-      } else {
-        clues = theme.pickClues(10, maxLen: gridSize);
-        debugPrint('⚠️ Picking any 10 clues. Got ${clues.length} clues');
+
+      if (clues.length < 10) {
+        debugPrint('⚠️ Still short (${clues.length}/10). Backfilling with any available clues, even repeats.');
+        final fallback = theme.pickClues(10, maxLen: gridSize);
+        final existingAnswers = clues.map((c) => c.answer).toSet();
+
+        for (final clue in fallback) {
+          if (clues.length >= 10) break;
+          if (existingAnswers.add(clue.answer)) {
+            clues.add(clue);
+          }
+        }
+
+        if (clues.length < 10 && fallback.isNotEmpty) {
+          // Allow repeats if the theme simply does not have enough unique answers
+          var idx = 0;
+          while (clues.length < 10) {
+            clues.add(fallback[idx % fallback.length]);
+            idx++;
+          }
+        }
+
+        if (clues.length < 10) {
+          debugPrint('⚠️ Theme fallback failed to provide 10 clues. Using placeholder entries.');
+        }
       }
     }
     
@@ -524,13 +591,16 @@ class _GameScreenState extends State<GameScreen>
 
     debugPrint('Selected words: ${chosen.map((c) => '${c.answer}(${c.answer.length})').join(', ')}');
 
+    // Reset celebration flag so fireworks can play again
+    final gc = context.read<GameController>();
+    gc.resetCelebration();
+
     setState(() {
       _themeTitle = theme.name.toUpperCase();
       _clues = List<Clue>.from(chosen);
       grid = null;
       _sel = null;
       // Reset game state via ValueNotifiers
-      _scoreNotifier.value = 0;
       _hintUnlockedNotifier.value = false;
       _selectionNotifier.value = null;
       _revealedClues.clear();
@@ -543,6 +613,7 @@ class _GameScreenState extends State<GameScreen>
         _remainingSeconds = null;
         _sceneDurationSeconds = null;
       }
+      _dangerHapticTriggered = false;
     });
 
     _cancelSceneTimer();
@@ -649,6 +720,10 @@ class _GameScreenState extends State<GameScreen>
 
   void _playMetronomeTick(int remainingSeconds) {
     final gc = context.read<GameController>();
+    if (!_dangerHapticTriggered && remainingSeconds <= 20) {
+      _dangerHapticTriggered = true;
+      unawaited(gc.feedback.hapticLight());
+    }
     
     // Milestone celebrations (positive reinforcement)
     if (remainingSeconds == 60) {
@@ -747,45 +822,51 @@ class _GameScreenState extends State<GameScreen>
 
   Future<void> _advanceScene() async {
     if (_startingNewPuzzle) return;
-    debugPrint('🎬 _advanceScene: stageIndex=$_currentStageIndex, sceneIndex=$_currentSceneIndex, hasMore=$_hasMoreScenes');
+    debugPrint('🎬 _advanceScene CALLED: stageIndex=$_currentStageIndex, sceneIndex=$_currentSceneIndex, hasMore=$_hasMoreScenes, isFinalScene=$_isFinalScene');
     setState(() {
       _startingNewPuzzle = true;
     });
+
+    // Try to show an interstitial ad between scenes/screens if one is ready.
+    // This awaits ad dismissal before continuing; if no ad is cached, it no-ops.
+    await InterstitialAdManager.instance.showIfAvailable();
     
-    final bool willChangeStage = _isFinalScene;
+    // Check if this is the final scene BEFORE incrementing
+    final bool isCurrentlyFinalScene = _isFinalScene;
+    debugPrint('🎬 isCurrentlyFinalScene=$isCurrentlyFinalScene (checking before increment)');
     
-    if (_isFinalScene) {
+    if (isCurrentlyFinalScene) {
       // Finished all scenes in this stage, advance to next stage
       final isLastStage = (_currentStageIndex + 1) >= _allStages.length;
+      debugPrint('🎬 Is final scene - isLastStage=$isLastStage');
       if (isLastStage) {
         debugPrint('🎬 Game complete! Looping back to first stage');
         setState(() {
           _currentStageIndex = 0;
           _currentSceneIndex = 0;
-          _usedAnswers.clear();
         });
       } else {
-        debugPrint('🎬 Stage complete, advancing to stage ${_currentStageIndex + 1}');
+        debugPrint('🎬 Stage complete, advancing from stage $_currentStageIndex to stage ${_currentStageIndex + 1}');
         setState(() {
           _currentStageIndex++;
           _currentSceneIndex = 0;
-          _usedAnswers.clear();
         });
       }
+      
+      // Initialize the new stage before showing progress path
+      await _initializeStage();
+      
+      // Show progress path when changing stages
+      // (_initializeStage already set _showProgressPath = true)
+      // Wait for progress path to be dismissed before loading puzzle
+      return;
     } else {
-      debugPrint('🎬 Advancing to next scene: ${_currentSceneIndex + 1}');
+      // Not the final scene yet, advance to next scene
+      debugPrint('🎬 NOT final scene - Advancing from scene $_currentSceneIndex to scene ${_currentSceneIndex + 1}');
       setState(() {
         _currentSceneIndex++;
       });
-    }
-    
-    // Show progress path only when changing stages (at scene 0 of new stage)
-    if (willChangeStage) {
-      setState(() {
-        _showProgressPath = true;
-      });
-      // Wait for progress path to be dismissed before loading puzzle
-      return;
+      debugPrint('🎬 Scene advanced to: $_currentSceneIndex');
     }
     
     await _loadPuzzle();
@@ -811,6 +892,39 @@ class _GameScreenState extends State<GameScreen>
     });
   }
 
+  Future<void> _onScreenSelected(int stageIndex) async {
+    // User selected a completed screen to replay from scene 1
+    debugPrint('🎬 _onScreenSelected: stageIndex=$stageIndex (before update: current=$_currentStageIndex, scene=$_currentSceneIndex)');
+    
+    // Clear any saved game state to ensure fresh start
+    await _gamePersistence.clear();
+    
+    setState(() {
+      _currentStageIndex = stageIndex;
+      _currentSceneIndex = 0;
+      // Keep global used answers to minimize repeats across screens; optionally trim most recent to re-allow variety
+      if (_usedAnswers.length > 50) {
+        // Drop the oldest half to keep memory bounded while still reducing repeats
+        final toRemove = _usedAnswers.length ~/ 2;
+        _usedAnswers.removeAll(_usedAnswers.take(toRemove).toList());
+      }
+    });
+    
+    debugPrint('🎬 _onScreenSelected: After setState - current=$_currentStageIndex, scene=$_currentSceneIndex');
+    
+    // Initialize the stage without showing progress path (unlike _initializeStage which shows path)
+    final dict = await ThemeDictionary.loadFromAsset('assets/key and themes.txt');
+    final theme = dict.findByName(_stageDefinition.themeName);
+    setState(() {
+      _themeDictionary = dict;
+      _stageTheme = theme;
+    });
+    
+    debugPrint('🎬 _onScreenSelected: After theme load - current=$_currentStageIndex, scene=$_currentSceneIndex');
+    await _loadPuzzle();
+    debugPrint('🎬 _onScreenSelected: After _loadPuzzle - current=$_currentStageIndex, scene=$_currentSceneIndex');
+  }
+
   void _showSceneIntro() {
     _clapboardTimer?.cancel();
     if (!mounted) return;
@@ -818,11 +932,20 @@ class _GameScreenState extends State<GameScreen>
     final sceneIndexLabel = 'SCENE ${_currentScene.index}';
     final sceneTitle = _currentScene.title.toUpperCase();
 
+    debugPrint('🎬 _showSceneIntro: _currentSceneIndex=$_currentSceneIndex, _currentScene.index=${_currentScene.index}, sceneIndexLabel=$sceneIndexLabel');
+
     setState(() {
       _clapboardLabel = sceneIndexLabel;
       _clapboardSubtitle = sceneTitle;
       _showClapboard = true;
     });
+
+    // Ensure an interstitial is loading for this scene; it'll be shown
+    // when the player moves to the next scene/screen.
+    final interstitialUnit = Platform.isAndroid
+        ? AdsConfig.androidInterstitial
+        : AdsConfig.iosInterstitial;
+    InterstitialAdManager.instance.load(adUnitId: interstitialUnit);
 
     final gameController = context.read<GameController>();
     
@@ -834,23 +957,7 @@ class _GameScreenState extends State<GameScreen>
     // Stage 4 (480-800ms): Second clap up and settle - sound at 480ms
     
     if (gameController.settings.soundEnabled) {
-      // First clap down
-      unawaited(gameController.feedback.playTick());
-      // First clap up
-      Future.delayed(const Duration(milliseconds: 160), () {
-        if (!mounted || !_showClapboard) return;
-        unawaited(gameController.feedback.playTick());
-      });
-      // Second clap down
-      Future.delayed(const Duration(milliseconds: 320), () {
-        if (!mounted || !_showClapboard) return;
-        unawaited(gameController.feedback.playTick());
-      });
-      // Second clap up (softer)
-      Future.delayed(const Duration(milliseconds: 480), () {
-        if (!mounted || !_showClapboard) return;
-        unawaited(gameController.feedback.playTick());
-      });
+      unawaited(gameController.feedback.playClapboard());
     }
     
     if (gameController.settings.hapticsEnabled) {
@@ -863,7 +970,7 @@ class _GameScreenState extends State<GameScreen>
       });
     }
 
-    _clapboardTimer = Timer(const Duration(milliseconds: 2200), () {
+    _clapboardTimer = Timer(const Duration(milliseconds: 1700), () {
       if (!mounted) return;
       setState(() {
         _showClapboard = false;
@@ -1109,70 +1216,6 @@ class _GameScreenState extends State<GameScreen>
   }
 
   String get _currentSceneTheme => _stageTheme?.name.toUpperCase() ?? 'BOLLY WORD GRID';
-
-  void _onThemeHeaderTap() {
-    if (_sel == null || !_sceneActive || _timeExpired) return;
-    debugPrint('🎬 Triple-tap debug: Auto-completing scene');
-    final sc = _sel!;
-    final remaining = sc.remainingWords.toList();
-    debugPrint('🎬 Remaining words: ${remaining.join(", ")}');
-    if (remaining.isEmpty) return;
-
-    final totalRemaining = remaining.length;
-    final targetCount = totalRemaining <= 1
-        ? totalRemaining
-        : min(9, totalRemaining - 1);
-    debugPrint('🎬 Auto-complete target count: $targetCount of $totalRemaining');
-    if (targetCount == 0) {
-      return;
-    }
-
-    final gc = context.read<GameController>();
-
-    // Auto-complete the desired number of remaining words
-    int autoCompleted = 0;
-    for (final word in remaining) {
-      if (autoCompleted >= targetCount) {
-        break;
-      }
-      final path = sc.pathForWord(word);
-      if (path == null || path.isEmpty) continue;
-      final reversed = String.fromCharCodes(word.runes.toList().reversed);
-      final canonical = sc.targetWords.contains(word)
-          ? word
-          : (sc.targetWords.contains(reversed) ? reversed : null);
-      if (canonical == null) continue;
-      if (sc.found.any((f) => f.word == canonical)) continue;
-
-      final fp = sc.forceAddWord(canonical, path);
-      if (fp != null) {
-        _scoreNotifier.value += 10;
-        debugPrint('🎬 Auto-completed: $canonical');
-        unawaited(gc.onWordFound());
-        autoCompleted += 1;
-      }
-    }
-
-    _selectionNotifier.value = sc;
-
-    // Check if puzzle is now complete
-    if (sc.isComplete) {
-      _cancelSceneTimer();
-      setState(() {
-        _sceneActive = false;
-      });
-      final gc = context.read<GameController>();
-      // Only play fireworks sound when completing the final scene of a screen
-      final playSound = _isFinalScene;
-      unawaited(gc.onPuzzleComplete(playSound: playSound));
-      _spawnConfetti();
-    } else {
-      // Update UI to show the newly found words
-      setState(() {});
-    }
-
-    _schedulePersistGameState();
-  }
 
   String _firstLetterHint(Clue clue) {
     final ans = clue.answer;
@@ -1528,7 +1571,7 @@ class _GameScreenState extends State<GameScreen>
     _confettiController.forward();
     
     // Hide confetti after animation completes
-    Future.delayed(const Duration(milliseconds: 2100), () {
+    Future.delayed(const Duration(milliseconds: 1500), () {
       if (mounted) _showConfettiNotifier.value = false;
     });
   }
@@ -1542,6 +1585,7 @@ class _GameScreenState extends State<GameScreen>
         currentStageIndex: _currentStageIndex,
         currentSceneIndex: _currentSceneIndex,
         onComplete: _onProgressPathComplete,
+        onScreenSelected: _onScreenSelected,
       );
     }
     
@@ -1586,7 +1630,7 @@ class _GameScreenState extends State<GameScreen>
                         final word = list.first;
                         final start = sc.findWordStart(word);
                         if (start != null) {
-                          _scoreNotifier.value -= 15;
+                          _changeScore(-15, allowHintReminder: false);
                           sc.showHintAt(start, durationMs: 1000);
                           _schedulePersistGameState();
                         }
@@ -1610,48 +1654,43 @@ class _GameScreenState extends State<GameScreen>
             Column(
               children: [
                 // Theme name bar
-                GestureDetector(
-              onTap: () {
-                // Triple-tap detection using timestamp
-                final now = DateTime.now();
-                if (_lastTapTime != null && now.difference(_lastTapTime!).inMilliseconds < 500) {
-                  _tapCount++;
-                  if (_tapCount >= 2) {
-                    _onThemeHeaderTap();
-                    _tapCount = 0;
-                  }
-                } else {
-                  _tapCount = 0;
-                }
-                _lastTapTime = now;
-              },
-              child: Container(
+                Container(
                 width: double.infinity,
                 color: Theme.of(context).colorScheme.primaryContainer,
                 padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      _themeTitle.isEmpty ? 'Bolly Word Grid' : _currentSceneTheme,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: Theme.of(context).colorScheme.onPrimaryContainer,
-                      ),
-                      textAlign: TextAlign.center,
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        return ConstrainedBox(
+                          constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.center,
+                            child: Text(
+                              _sceneHeaderLabel,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                                color: Theme.of(context).colorScheme.onPrimaryContainer,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        );
+                      },
                     ),
                     if (_isTimedScene && _remainingSeconds != null) ...[
                       const SizedBox(height: 6),
                       _buildTimerDisplay(context),
                       const SizedBox(height: 8),
-                      _buildFilmstripProgressBar(context),
-                      const SizedBox(height: 8),
                       _buildLitFuse(context),
                     ],
                   ],
-                ),
-              ),
+        ),
             ),
                 // Key box with chips
                 Container(
@@ -2055,6 +2094,9 @@ class _GameScreenState extends State<GameScreen>
 
   @override
   void dispose() {
+    // Best-effort cleanup for any cached interstitials
+    // (safe to fire-and-forget during widget disposal)
+    InterstitialAdManager.instance.dispose();
     _bannerAd?.dispose();
     _cancelSceneTimer();
     // Release animation controller back to pool

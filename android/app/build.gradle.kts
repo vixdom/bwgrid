@@ -26,7 +26,7 @@ android {
     }
 
     kotlinOptions {
-        jvmTarget = "1.8"
+        jvmTarget = JavaVersion.VERSION_1_8.toString()
     }
 
     defaultConfig {
@@ -36,8 +36,8 @@ android {
         // Align with pubspec.yaml if properties are provided by Flutter tooling
         val flutterVersionCode = project.findProperty("flutter.versionCode")?.toString()?.toIntOrNull()
         val flutterVersionName = project.findProperty("flutter.versionName")?.toString()
-        versionCode = flutterVersionCode ?: 10
-        versionName = flutterVersionName ?: "1.2.2"
+        versionCode = flutterVersionCode ?: 11
+        versionName = flutterVersionName ?: "2.0.1"
         multiDexEnabled = true
     }
 

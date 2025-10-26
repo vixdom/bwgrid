@@ -22,8 +22,45 @@ void main() async {
   runApp(const BollyWordGridApp());
 }
 
-class BollyWordGridApp extends StatelessWidget {
+class BollyWordGridApp extends StatefulWidget {
   const BollyWordGridApp({super.key});
+
+  @override
+  State<BollyWordGridApp> createState() => _BollyWordGridAppState();
+}
+
+class _BollyWordGridAppState extends State<BollyWordGridApp>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Pause music when app is backgrounded, resume when foregrounded.
+    final contextMounted = mounted ? context : null;
+    if (contextMounted == null) return;
+    final feedback = Provider.of<FeedbackController>(contextMounted, listen: false);
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.detached:
+      case AppLifecycleState.hidden:
+        feedback.pauseBackgroundMusic();
+        break;
+      case AppLifecycleState.resumed:
+        feedback.resumeBackgroundMusicIfAllowed();
+        break;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

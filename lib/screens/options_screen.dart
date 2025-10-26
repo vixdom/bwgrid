@@ -6,6 +6,8 @@ import '../constants/app_themes.dart';
 import '../services/settings_repository.dart';
 import '../models/feedback_settings.dart';
 import '../services/feedback_controller.dart';
+import '../services/game_persistence.dart';
+import '../services/achievements_service.dart';
 
 class OptionsScreen extends StatefulWidget {
   const OptionsScreen({super.key});
@@ -58,16 +60,44 @@ class _OptionsScreenState extends State<OptionsScreen> {
     );
 
     if (confirmed == true && mounted) {
-      // Reset settings to defaults
-      final settings = context.read<FeedbackSettings>();
-      settings.soundEnabled = true;
-      settings.hapticsEnabled = true;
-      settings.hintsEnabled = true;
+      try {
+        // Clear saved game state (this will force restart from Screen 1, Scene 1)
+        const gamePersistence = GamePersistence();
+        await gamePersistence.clear();
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('All progress has been reset')),
+        // Reset achievements
+        final achievements = context.read<AchievementsService>();
+        await achievements.resetAllAchievements();
+
+        // Reset settings to defaults
+        final settings = context.read<FeedbackSettings>();
+        settings.setSoundEnabled(true);
+        settings.setMusicEnabled(true);
+        settings.setHapticsEnabled(true);
+        settings.setHintsEnabled(true);
+        unawaited(
+          context.read<FeedbackController>().setBackgroundMusicEnabled(true),
         );
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'All progress has been reset. Restart the app to begin from Screen 1.',
+              ),
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error resetting progress: $e'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
+        }
       }
     }
   }
@@ -113,6 +143,10 @@ class _OptionsScreenState extends State<OptionsScreen> {
   Widget build(BuildContext context) {
     final settings = context.watch<FeedbackSettings>();
     final isDark = settings.theme == AppTheme.kashyap;
+    final theme = Theme.of(context);
+    final versionStyle = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurface.withOpacity(0.65),
+    );
     return Scaffold(
       appBar: AppBar(title: const Text('Options')),
       body: !_loaded
@@ -125,7 +159,9 @@ class _OptionsScreenState extends State<OptionsScreen> {
                   Positioned.fill(
                     child: IgnorePointer(
                       child: Image.asset(
-                        isDark ? 'assets/Options_Dark.png' : 'assets/Options_Light.png',
+                        isDark
+                            ? 'assets/Options_Dark.png'
+                            : 'assets/Options_Light.png',
                         fit: BoxFit.cover,
                       ),
                     ),
@@ -136,151 +172,191 @@ class _OptionsScreenState extends State<OptionsScreen> {
                         child: ListView(
                           padding: const EdgeInsets.all(16),
                           children: [
-                  // Sound section
-                  BwSectionCard(
-                    title: 'Sound',
-                    child: Column(
-                      children: [
-                        _SettingTile(
-                          key: const Key('soundSwitch'),
-                          title: 'Sound effects',
-                          value: _repo.soundEnabled,
-                          onChanged: (v) {
-                            setState(() => _repo.setSound(v));
-                            // propagate to app-wide settings
-                            context.read<FeedbackSettings>().setSoundEnabled(v);
-                            _saveSnack();
-                          },
-                          iconOn: Icons.volume_up,
-                          iconOff: Icons.volume_off_outlined,
-                        ),
-                        const Divider(height: 0),
-                        _SettingTile(
-                          key: const Key('hapticsSwitch'),
-                          title: 'Haptics',
-                          value: _repo.hapticsEnabled,
-                          onChanged: (v) {
-                            setState(() => _repo.setHaptics(v));
-                            // propagate to app-wide settings
-                            context.read<FeedbackSettings>().setHapticsEnabled(v);
-                            // Gentle acknowledgement only when enabling
-                            if (v) {
-                              // Fire-and-forget; FeedbackController honors current settings
-                              unawaited(
-                                context.read<FeedbackController>().hapticLight(),
-                              );
-                            }
-                            _saveSnack();
-                          },
-                          iconOn: Icons.vibration,
-                          iconOff: Icons.vibration_outlined,
-                        ),
-                        const Divider(height: 0),
-                        _SettingTile.disabled(
-                          key: const Key('musicSwitch'),
-                          title: 'Music',
-                          subtitle: 'Background music',
-                          trailingPill: 'Coming soon',
-                          iconOn: Icons.music_note,
-                          iconOff: Icons.music_off,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Themes section
-                  BwSectionCard(
-                    title: 'Themes',
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _ThemeSwatch(
-                          key: const Key('swatch_Kashyap'),
-                          theme: AppTheme.kashyap,
-                          selected: _repo.theme == AppTheme.kashyap,
-                          title: 'Kashyap',
-                          subtitle: 'Dark and moody',
-                          onTap: () {
-                            setState(() => _repo.setTheme(AppTheme.kashyap));
-                            context.read<FeedbackSettings>().setTheme(AppTheme.kashyap);
-                            _saveSnack();
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        _ThemeSwatch(
-                          key: const Key('swatch_Hirani'),
-                          theme: AppTheme.hirani,
-                          selected: _repo.theme == AppTheme.hirani,
-                          title: 'Hirani',
-                          subtitle: 'Clean light',
-                          onTap: () {
-                            setState(() => _repo.setTheme(AppTheme.hirani));
-                            context.read<FeedbackSettings>().setTheme(AppTheme.hirani);
-                            _saveSnack();
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Gameplay section
-                  BwSectionCard(
-                    title: 'Game play',
-                    child: Column(
-                      children: [
-                        _SettingTile(
-                          key: const Key('hintsSwitch'),
-                          title: 'Hints',
-                          subtitle: _repo.hintsEnabled ? 'Each hint costs 15 tickets' : null,
-                          value: _repo.hintsEnabled,
-                          onChanged: (v) {
-                            setState(() => _repo.setHints(v));
-                            // propagate to app-wide settings
-                            context.read<FeedbackSettings>().setHintsEnabled(v);
-                            _saveSnack();
-                          },
-                          iconOn: Icons.tips_and_updates,
-                          iconOff: Icons.tips_and_updates_outlined,
-                        ),
-                        const Divider(height: 0),
-                        _SettingTile.disabled(
-                          key: const Key('selectIndustriesDisabled'),
-                          title: 'Select movie industries',
-                          trailingPill: 'Coming soon',
-                          iconOn: Icons.local_movies,
-                          iconOff: Icons.local_movies_outlined,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Progress section
-                  BwSectionCard(
-                    title: 'Progress',
-                    child: ListTile(
-                      leading: const Icon(Icons.restart_alt),
-                      title: const Text('Reset all progress'),
-                      subtitle: const Text('Clear achievements and saved games'),
-                      onTap: _resetAllProgress,
-                    ),
-                  ),
-
-                          // Bottom helper text removed per request
-                          if (_isAdLoaded && _bannerAd != null)
-                            Container(
-                              alignment: Alignment.center,
-                              width: _bannerAd!.size.width.toDouble(),
-                              height: _bannerAd!.size.height.toDouble(),
-                              child: AdWidget(ad: _bannerAd!),
+                            // Sound section
+                            BwSectionCard(
+                              title: 'Sound',
+                              child: Column(
+                                children: [
+                                  _SettingTile(
+                                    key: const Key('soundSwitch'),
+                                    title: 'Sound effects',
+                                    subtitle: 'Grid taps, word found jingles, and alerts',
+                                    value: _repo.soundEnabled,
+                                    onChanged: (v) {
+                                      setState(() => _repo.setSound(v));
+                                      // propagate to app-wide settings
+                                      context
+                                          .read<FeedbackSettings>()
+                                          .setSoundEnabled(v);
+                                      _saveSnack();
+                                    },
+                                    iconOn: Icons.volume_up,
+                                    iconOff: Icons.volume_off_outlined,
+                                  ),
+                                  const Divider(height: 0),
+                                  _SettingTile(
+                                    key: const Key('hapticsSwitch'),
+                                    title: 'Haptics',
+                                    subtitle: 'Vibration cues for taps, timers, and celebrations',
+                                    value: _repo.hapticsEnabled,
+                                    onChanged: (v) {
+                                      setState(() => _repo.setHaptics(v));
+                                      // propagate to app-wide settings
+                                      context
+                                          .read<FeedbackSettings>()
+                                          .setHapticsEnabled(v);
+                                      // Gentle acknowledgement only when enabling
+                                      if (v) {
+                                        // Fire-and-forget; FeedbackController honors current settings
+                                        unawaited(
+                                          context
+                                              .read<FeedbackController>()
+                                              .hapticLight(),
+                                        );
+                                      }
+                                      _saveSnack();
+                                    },
+                                    iconOn: Icons.vibration,
+                                    iconOff: Icons.vibration_outlined,
+                                  ),
+                                  const Divider(height: 0),
+                                  _SettingTile(
+                                    key: const Key('musicSwitch'),
+                                    title: 'Music',
+                                    subtitle: 'Low-volume ambient score during play',
+                                    value: _repo.musicEnabled,
+                                    onChanged: (v) {
+                                      setState(() => _repo.setMusic(v));
+                                      final feedbackSettings = context
+                                          .read<FeedbackSettings>();
+                                      feedbackSettings.setMusicEnabled(v);
+                                      final feedbackController = context
+                                          .read<FeedbackController>();
+                                      unawaited(
+                                        feedbackController
+                                            .setBackgroundMusicEnabled(v),
+                                      );
+                                      _saveSnack();
+                                    },
+                                    iconOn: Icons.music_note,
+                                    iconOff: Icons.music_off,
+                                  ),
+                                ],
+                              ),
                             ),
+
+                            const SizedBox(height: 16),
+
+                            // Themes section
+                            BwSectionCard(
+                              title: 'Themes',
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _ThemeSwatch(
+                                    key: const Key('swatch_Kashyap'),
+                                    theme: AppTheme.kashyap,
+                                    selected: _repo.theme == AppTheme.kashyap,
+                                    title: 'Kashyap',
+                                    subtitle: 'Dark and moody',
+                                    onTap: () {
+                                      setState(
+                                        () => _repo.setTheme(AppTheme.kashyap),
+                                      );
+                                      context.read<FeedbackSettings>().setTheme(
+                                        AppTheme.kashyap,
+                                      );
+                                      _saveSnack();
+                                    },
+                                  ),
+                                  const SizedBox(height: 12),
+                                  _ThemeSwatch(
+                                    key: const Key('swatch_Hirani'),
+                                    theme: AppTheme.hirani,
+                                    selected: _repo.theme == AppTheme.hirani,
+                                    title: 'Hirani',
+                                    subtitle: 'Clean light',
+                                    onTap: () {
+                                      setState(
+                                        () => _repo.setTheme(AppTheme.hirani),
+                                      );
+                                      context.read<FeedbackSettings>().setTheme(
+                                        AppTheme.hirani,
+                                      );
+                                      _saveSnack();
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            const SizedBox(height: 16),
+
+                            // Gameplay section
+                            BwSectionCard(
+                              title: 'Game play',
+                              child: Column(
+                                children: [
+                                  _SettingTile(
+                                    key: const Key('hintsSwitch'),
+                                    title: 'Hints',
+                                    subtitle: _repo.hintsEnabled
+                                        ? 'Each hint costs 15 tickets'
+                                        : null,
+                                    value: _repo.hintsEnabled,
+                                    onChanged: (v) {
+                                      setState(() => _repo.setHints(v));
+                                      // propagate to app-wide settings
+                                      context
+                                          .read<FeedbackSettings>()
+                                          .setHintsEnabled(v);
+                                      _saveSnack();
+                                    },
+                                    iconOn: Icons.tips_and_updates,
+                                    iconOff: Icons.tips_and_updates_outlined,
+                                  ),
+                                  const Divider(height: 0),
+                                  _SettingTile.disabled(
+                                    key: const Key('selectIndustriesDisabled'),
+                                    title: 'Select movie industries',
+                                    trailingPill: 'Coming soon',
+                                    iconOn: Icons.local_movies,
+                                    iconOff: Icons.local_movies_outlined,
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            const SizedBox(height: 16),
+
+                            // Progress section
+                            BwSectionCard(
+                              title: 'Progress',
+                              child: ListTile(
+                                leading: const Icon(Icons.restart_alt),
+                                title: const Text('Reset all progress'),
+                                subtitle: const Text(
+                                  'Clear achievements and saved games',
+                                ),
+                                onTap: _resetAllProgress,
+                              ),
+                            ),
+
+                            // Bottom helper text removed per request
+                            if (_isAdLoaded && _bannerAd != null)
+                              Container(
+                                alignment: Alignment.center,
+                                width: _bannerAd!.size.width.toDouble(),
+                                height: _bannerAd!.size.height.toDouble(),
+                                child: AdWidget(ad: _bannerAd!),
+                              ),
                           ],
                         ),
+                      ),
+                      const SizedBox(height: 12),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Text('Version 2.01', style: versionStyle),
                       ),
                     ],
                   ),
@@ -310,7 +386,9 @@ class BwSectionCard extends StatelessWidget {
             offset: Offset(0, 6),
           ),
         ],
-  border: Border.all(color: theme.colorScheme.outline.withValues(alpha: 0.2)),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.2),
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -334,9 +412,9 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       title,
-      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w800,
-          ),
+      style: Theme.of(
+        context,
+      ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
     );
   }
 }
@@ -350,8 +428,8 @@ class _SettingTile extends StatelessWidget {
     required this.onChanged,
     required this.iconOn,
     required this.iconOff,
-  })  : _disabled = false,
-        trailingPill = null;
+  }) : _disabled = false,
+       trailingPill = null;
 
   const _SettingTile.disabled({
     super.key,
@@ -360,9 +438,9 @@ class _SettingTile extends StatelessWidget {
     this.trailingPill,
     required this.iconOn,
     required this.iconOff,
-  })  : value = false,
-        onChanged = null,
-        _disabled = true;
+  }) : value = false,
+       onChanged = null,
+       _disabled = true;
 
   final String title;
   final String? subtitle;
@@ -394,10 +472,7 @@ class _SettingTile extends StatelessWidget {
                 AnimatedOpacity(
                   duration: const Duration(milliseconds: 200),
                   opacity: 0.8,
-                  child: Text(
-                    subtitle!,
-                    style: theme.textTheme.bodySmall,
-                  ),
+                  child: Text(subtitle!, style: theme.textTheme.bodySmall),
                 ),
             ],
           ),
@@ -408,10 +483,7 @@ class _SettingTile extends StatelessWidget {
           Semantics(
             container: true,
             label: '$title toggle',
-            child: Switch.adaptive(
-              value: value,
-              onChanged: onChanged,
-            ),
+            child: Switch.adaptive(value: value, onChanged: onChanged),
           ),
       ],
     );
@@ -438,15 +510,15 @@ class _ComingSoonPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         text,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: Theme.of(context).colorScheme.primary,
-              fontWeight: FontWeight.w700,
-            ),
+          color: Theme.of(context).colorScheme.primary,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
@@ -496,7 +568,7 @@ class _ThemeSwatch extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-  child: Column(
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
@@ -507,11 +579,17 @@ class _ThemeSwatch extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                        Text(
+                          title,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
                         if (subtitle != null)
                           Opacity(
                             opacity: 0.8,
-                            child: Text(subtitle!, style: Theme.of(context).textTheme.bodySmall),
+                            child: Text(
+                              subtitle!,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
                           ),
                       ],
                     ),
@@ -530,4 +608,3 @@ class _ThemeSwatch extends StatelessWidget {
     );
   }
 }
-

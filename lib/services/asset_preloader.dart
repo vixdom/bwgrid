@@ -42,6 +42,7 @@ class AssetPreloader {
     'assets/audio/fireworks.wav',
     'assets/audio/clue.wav',
     'assets/audio/tick_soft.wav',
+    'assets/audio/clap board.mp3',
   ];
 
   /// Preload all critical assets for the app
@@ -64,9 +65,13 @@ class AssetPreloader {
       _preloadingCompleted = true;
       _isPreloading = false;
       _preloadCompleter.complete();
-      
-      debugPrint('[AssetPreloader] Critical asset preloading completed successfully');
-      debugPrint('[AssetPreloader] Preloaded ${_preloadedImages.length} images and ${_preloadedAudio.length} audio files');
+
+      debugPrint(
+        '[AssetPreloader] Critical asset preloading completed successfully',
+      );
+      debugPrint(
+        '[AssetPreloader] Preloaded ${_preloadedImages.length} images and ${_preloadedAudio.length} audio files',
+      );
     } catch (e) {
       debugPrint('[AssetPreloader] Error during preloading: $e');
       _isPreloading = false;
@@ -81,7 +86,7 @@ class AssetPreloader {
     }
 
     debugPrint('[AssetPreloader] Starting non-critical asset preloading...');
-    
+
     try {
       // Preload fallback audio formats
       final nonCriticalAudio = [
@@ -91,6 +96,11 @@ class AssetPreloader {
         'assets/audio/fireworks.mp3',
         'assets/audio/clue.mp3',
         'assets/audio/tick_soft.mp3',
+        'assets/audio/clap board.mp3',
+        'assets/music/Midnight Monsoon.mp3',
+        'assets/music/Midnight Monsoon 2.mp3',
+        'assets/music/Wordplay Raga.mp3',
+        'assets/music/Wordplay Raga 2.mp3',
       ];
 
       await _preloadAudioFiles(nonCriticalAudio);
@@ -101,13 +111,16 @@ class AssetPreloader {
   }
 
   /// Check if a specific image has been preloaded
-  bool isImagePreloaded(String assetPath) => _preloadedImages.contains(assetPath);
+  bool isImagePreloaded(String assetPath) =>
+      _preloadedImages.contains(assetPath);
 
   /// Check if a specific audio file has been preloaded
-  bool isAudioPreloaded(String assetPath) => _preloadedAudio.containsKey(assetPath);
+  bool isAudioPreloaded(String assetPath) =>
+      _preloadedAudio.containsKey(assetPath);
 
   /// Get a preloaded audio player (returns null if not preloaded)
-  AudioPlayer? getPreloadedAudioPlayer(String assetPath) => _preloadedAudio[assetPath];
+  AudioPlayer? getPreloadedAudioPlayer(String assetPath) =>
+      _preloadedAudio[assetPath];
 
   /// Preload all critical images
   Future<void> _preloadImages(BuildContext context) async {
@@ -148,7 +161,7 @@ class AssetPreloader {
   /// Dispose of all preloaded audio players to free memory
   Future<void> dispose() async {
     debugPrint('[AssetPreloader] Disposing preloaded audio players...');
-    
+
     final futures = _preloadedAudio.values.map((player) async {
       try {
         await player.dispose();

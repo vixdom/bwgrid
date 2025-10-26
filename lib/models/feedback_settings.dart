@@ -6,6 +6,7 @@ enum HapticStrength { light, medium, heavy }
 class FeedbackSettings extends ChangeNotifier {
   bool soundEnabled;
   double volume; // 0.0 - 1.0
+  bool musicEnabled;
   bool hapticsEnabled;
   HapticStrength hapticStrength;
   bool playInSilentMode; // iOS only preference
@@ -18,12 +19,13 @@ class FeedbackSettings extends ChangeNotifier {
   FeedbackSettings({
     this.soundEnabled = true,
     this.volume = 0.35,
+    this.musicEnabled = true,
     this.hapticsEnabled = true,
     this.hapticStrength = HapticStrength.medium,
-  this.playInSilentMode = true,
-  this.hintsEnabled = true,
-  this.reduceMotionOverride,
-  this.theme = AppTheme.hirani,
+    this.playInSilentMode = true,
+    this.hintsEnabled = true,
+    this.reduceMotionOverride,
+    this.theme = AppTheme.hirani,
   });
 
   void setSoundEnabled(bool v) {
@@ -42,6 +44,12 @@ class FeedbackSettings extends ChangeNotifier {
   void setHapticsEnabled(bool v) {
     if (hapticsEnabled == v) return;
     hapticsEnabled = v;
+    notifyListeners();
+  }
+
+  void setMusicEnabled(bool v) {
+    if (musicEnabled == v) return;
+    musicEnabled = v;
     notifyListeners();
   }
 
@@ -78,6 +86,7 @@ class FeedbackSettings extends ChangeNotifier {
   void resetToDefaults() {
     soundEnabled = true;
     volume = 0.35;
+    musicEnabled = true;
     hapticsEnabled = true;
     hapticStrength = HapticStrength.medium;
     playInSilentMode = true;

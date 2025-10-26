@@ -8,4 +8,9 @@ class AdsConfig {
   // Banner Ad Unit IDs
   static const String androidBanner = 'ca-app-pub-4369020643957506/1487020917';
   static const String iosBanner = 'ca-app-pub-4369020643957506/1487020917';
+
+  // Interstitial Ad Unit IDs
+  // Same unit configured for both platforms in this project; replace if you split later.
+  static const String androidInterstitial = 'ca-app-pub-4369020643957506/6919642506';
+  static const String iosInterstitial = 'ca-app-pub-4369020643957506/6919642506';
 }
