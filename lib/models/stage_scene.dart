@@ -45,13 +45,18 @@ class StagePlaybook {
         stageTwo(),
         stageThree(),
         stageFour(),
-        stageFive(),
+    stageFive(),
+    stageSix(),
+    stageSeven(),
+    stageEight(),
+    stageNine(),
+    stageTen(),
       ];
 
   static StageDefinition stageOne() => const StageDefinition(
-        index: 1,
-    name: 'Nostalgia',
-        themeName: 'Nostalgia',
+    index: 1,
+  name: 'B&W era',
+    themeName: 'B&W era',
         scenes: [
           SceneDefinition(
             index: 1,
@@ -148,6 +153,126 @@ class StagePlaybook {
         index: 5,
     name: 'Golden Voices',
         themeName: 'Golden Voices',
+        scenes: [
+          SceneDefinition(
+            index: 1,
+            title: 'Spotlight Search',
+            mode: SceneMode.classic,
+          ),
+          SceneDefinition(
+            index: 2,
+            title: 'Hidden Names',
+            mode: SceneMode.hiddenClues,
+          ),
+          SceneDefinition(
+            index: 3,
+            title: 'Lightning Round',
+            mode: SceneMode.timed,
+            timeLimit: Duration(seconds: 90),
+          ),
+        ],
+      );
+
+  static StageDefinition stageSix() => const StageDefinition(
+        index: 6,
+    name: 'South Heroes',
+        themeName: 'South Heroes',
+        scenes: [
+          SceneDefinition(
+            index: 1,
+            title: 'Spotlight Search',
+            mode: SceneMode.classic,
+          ),
+          SceneDefinition(
+            index: 2,
+            title: 'Hidden Names',
+            mode: SceneMode.hiddenClues,
+          ),
+          SceneDefinition(
+            index: 3,
+            title: 'Lightning Round',
+            mode: SceneMode.timed,
+            timeLimit: Duration(seconds: 90),
+          ),
+        ],
+      );
+
+  static StageDefinition stageSeven() => const StageDefinition(
+        index: 7,
+    name: 'Filmy Family',
+        themeName: 'Filmy Family',
+        scenes: [
+          SceneDefinition(
+            index: 1,
+            title: 'Spotlight Search',
+            mode: SceneMode.classic,
+          ),
+          SceneDefinition(
+            index: 2,
+            title: 'Hidden Names',
+            mode: SceneMode.hiddenClues,
+          ),
+          SceneDefinition(
+            index: 3,
+            title: 'Lightning Round',
+            mode: SceneMode.timed,
+            timeLimit: Duration(seconds: 90),
+          ),
+        ],
+      );
+
+  static StageDefinition stageEight() => const StageDefinition(
+        index: 8,
+    name: 'Beyond India',
+        themeName: 'Beyond India',
+        scenes: [
+          SceneDefinition(
+            index: 1,
+            title: 'Spotlight Search',
+            mode: SceneMode.classic,
+          ),
+          SceneDefinition(
+            index: 2,
+            title: 'Hidden Names',
+            mode: SceneMode.hiddenClues,
+          ),
+          SceneDefinition(
+            index: 3,
+            title: 'Lightning Round',
+            mode: SceneMode.timed,
+            timeLimit: Duration(seconds: 90),
+          ),
+        ],
+      );
+
+  static StageDefinition stageNine() => const StageDefinition(
+        index: 9,
+    name: 'Dance Dance',
+        themeName: 'Dance Dance',
+        scenes: [
+          SceneDefinition(
+            index: 1,
+            title: 'Spotlight Search',
+            mode: SceneMode.classic,
+          ),
+          SceneDefinition(
+            index: 2,
+            title: 'Hidden Names',
+            mode: SceneMode.hiddenClues,
+          ),
+          SceneDefinition(
+            index: 3,
+            title: 'Lightning Round',
+            mode: SceneMode.timed,
+            timeLimit: Duration(seconds: 90),
+          ),
+        ],
+      );
+
+  static StageDefinition stageTen() => const StageDefinition(
+        index: 10,
+    name: 'Bad Men',
+        themeName: 'Bad Men',
         scenes: [
           SceneDefinition(
             index: 1,

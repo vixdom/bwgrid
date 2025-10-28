@@ -8,6 +8,7 @@ import '../models/feedback_settings.dart';
 import '../services/feedback_controller.dart';
 import '../services/game_persistence.dart';
 import '../services/achievements_service.dart';
+import 'privacy_policy_screen.dart';
 
 class OptionsScreen extends StatefulWidget {
   const OptionsScreen({super.key});
@@ -329,16 +330,22 @@ class _OptionsScreenState extends State<OptionsScreen> {
 
                             const SizedBox(height: 16),
 
-                            // Progress section
+                            // About section
                             BwSectionCard(
-                              title: 'Progress',
+                              title: 'About',
                               child: ListTile(
-                                leading: const Icon(Icons.restart_alt),
-                                title: const Text('Reset all progress'),
+                                leading: const Icon(Icons.privacy_tip),
+                                title: const Text('Privacy Policy'),
                                 subtitle: const Text(
-                                  'Clear achievements and saved games',
+                                  'How we collect and use your data',
                                 ),
-                                onTap: _resetAllProgress,
+                                onTap: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (context) => const PrivacyPolicyScreen(),
+                                    ),
+                                  );
+                                },
                               ),
                             ),
 
@@ -356,7 +363,7 @@ class _OptionsScreenState extends State<OptionsScreen> {
                       const SizedBox(height: 12),
                       Padding(
                         padding: const EdgeInsets.only(bottom: 12),
-                        child: Text('Version 2.01', style: versionStyle),
+                        child: Text('Version v2.1', style: versionStyle),
                       ),
                     ],
                   ),

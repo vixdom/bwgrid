@@ -26,11 +26,20 @@ class FeedbackController with ChangeNotifier {
   final AudioPlayer _clue = AudioPlayer();
   final AudioPlayer _clapboard = AudioPlayer();
   final AudioPlayer _music = AudioPlayer();
+  final AudioPlayer _countdownMusic = AudioPlayer();
+  StreamSubscription<PlayerState>? _musicStateSub;
+  bool _backgroundSuppressed = false;
+  bool _countdownActive = false;
   static const List<String> _musicPlaylist = [
     'assets/music/Midnight Monsoon.mp3',
     'assets/music/Midnight Monsoon 2.mp3',
     'assets/music/Wordplay Raga.mp3',
     'assets/music/Wordplay Raga 2.mp3',
+  ];
+  static const List<String> _countdownTracks = [
+    'assets/music/countdown1.mp3',
+    'assets/music/Countdown2.mp3',
+    'assets/music/Countdown3.mp3',
   ];
   String? _tickAssetName;
   String? _foundAssetName;
@@ -67,6 +76,15 @@ class FeedbackController with ChangeNotifier {
 
   FeedbackController(this.settings) {
     _lastMusicEnabled = settings.musicEnabled;
+    _musicStateSub = _music.playerStateStream.listen((state) {
+      final countdownPlaying = _countdownActive || _countdownMusic.playing;
+      if ((_backgroundSuppressed || countdownPlaying) && state.playing) {
+        debugPrint(
+          'Background music auto-stopped: countdown priority enforced',
+        );
+        unawaited(_music.stop());
+      }
+    });
   }
 
   /// Optimized audio loading that uses preloaded assets when available
@@ -144,6 +162,7 @@ class FeedbackController with ChangeNotifier {
   String? get fireworksError => _fireworksError;
   String? get clueError => _clueError;
   String? get clapboardError => _clapboardError;
+  bool get countdownActive => _countdownActive;
 
   Future<void> _initializeTickSound() async {
     const maxRetries = 3;
@@ -424,6 +443,16 @@ class FeedbackController with ChangeNotifier {
   }
 
   Future<void> _startBackgroundMusic() async {
+    if (_countdownActive || _countdownMusic.playing) {
+      debugPrint(
+        'Background music start skipped: countdown currently playing',
+      );
+      return;
+    }
+    if (_backgroundSuppressed) {
+      debugPrint('Background music start skipped: temporarily suppressed');
+      return;
+    }
     if (!_audioAvailable) {
       debugPrint('Background music skipped: audio not available');
       return;
@@ -445,6 +474,7 @@ class FeedbackController with ChangeNotifier {
 
   Future<void> _stopBackgroundMusic() async {
     if (!_musicInitialized) {
+      debugPrint('Background music not initialized, cannot stop');
       return;
     }
     try {
@@ -468,6 +498,14 @@ class FeedbackController with ChangeNotifier {
 
   /// Resume background music if the user's setting allows it.
   Future<void> resumeBackgroundMusicIfAllowed() async {
+    if (_backgroundSuppressed) {
+      debugPrint('Background music resume skipped: temporarily suppressed');
+      return;
+    }
+    if (_countdownActive || _countdownMusic.playing) {
+      debugPrint('Background music resume skipped: countdown active');
+      return;
+    }
     if (!settings.musicEnabled) {
       // Ensure it's stopped if user disabled it while app was backgrounded
       await _stopBackgroundMusic();
@@ -485,9 +523,80 @@ class FeedbackController with ChangeNotifier {
   Future<void> setBackgroundMusicEnabled(bool enabled) async {
     _lastMusicEnabled = enabled;
     if (enabled) {
+      if (_countdownActive || _countdownMusic.playing) {
+        debugPrint('Background music enable requested but countdown active');
+        return;
+      }
+      if (_backgroundSuppressed) {
+        debugPrint('Background music enable requested but suppressed');
+        return;
+      }
       await _startBackgroundMusic();
     } else {
       await _stopBackgroundMusic();
+    }
+  }
+
+  /// Start countdown music for timed scenes
+  Future<void> startCountdownMusic() async {
+    if (!settings.musicEnabled) {
+      debugPrint('Music disabled, not starting countdown music');
+      return;
+    }
+
+    try {
+      debugPrint('Starting countdown music...');
+      _backgroundSuppressed = true;
+      _countdownActive = true;
+      // Stop background music completely to avoid overlapping tracks
+      await _stopBackgroundMusic();
+
+      // Ensure any previous countdown track is stopped before loading a new one
+      try {
+        await _countdownMusic.stop();
+      } catch (_) {
+        // Ignore if player was not yet initialized
+      }
+
+      // Select a deterministic but varied countdown track
+      final trackIndex = DateTime.now().millisecondsSinceEpoch % _countdownTracks.length;
+      final track = _countdownTracks[trackIndex];
+
+      await _countdownMusic.setAsset(track);
+      await _countdownMusic.setLoopMode(LoopMode.one);
+      await _countdownMusic.setVolume(_backgroundMusicVolume());
+      unawaited(_countdownMusic.play());
+
+      debugPrint('Countdown music started: $track');
+    } catch (e) {
+      debugPrint('Error starting countdown music: $e');
+      _countdownActive = false;
+      _backgroundSuppressed = false;
+      // Resume background music if countdown fails
+      await resumeBackgroundMusicIfAllowed();
+    }
+  }
+
+  /// Stop countdown music and optionally resume the regular playlist
+  Future<void> stopCountdownMusic({bool resumeBackground = true}) async {
+    try {
+      if (_countdownMusic.playing) {
+        await _countdownMusic.stop();
+        debugPrint('Countdown music stopped.');
+      } else {
+        await _countdownMusic.pause();
+      }
+
+      _countdownActive = false;
+      if (resumeBackground) {
+        // Resume normal background music
+        _backgroundSuppressed = false;
+        await resumeBackgroundMusicIfAllowed();
+      }
+    } catch (e) {
+      debugPrint('Error stopping countdown music: $e');
+      _backgroundSuppressed = false;
+      _countdownActive = false;
     }
   }
 
@@ -928,7 +1037,7 @@ class FeedbackController with ChangeNotifier {
       if (Platform.isIOS) {
         await _hapticChannel.invokeMethod('notification', {'type': 'success'});
       } else if (Platform.isAndroid) {
-        if (await Vibration.hasCustomVibrationsSupport() ?? false) {
+        if (await Vibration.hasCustomVibrationsSupport()) {
           Vibration.vibrate(
             pattern: [0, 20, 20, 40],
             intensities: [0, 150, 0, 220],
@@ -992,6 +1101,7 @@ class FeedbackController with ChangeNotifier {
     unawaited(_audioPool.dispose());
 
     // Dispose individual players
+  _musicStateSub?.cancel();
     _tick.dispose();
     _found.dispose();
     _invalid.dispose();
@@ -999,6 +1109,7 @@ class FeedbackController with ChangeNotifier {
     _clue.dispose();
     _clapboard.dispose();
     _music.dispose();
+    _countdownMusic.dispose();
 
     super.dispose();
   }

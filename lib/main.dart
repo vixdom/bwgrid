@@ -31,6 +31,8 @@ class BollyWordGridApp extends StatefulWidget {
 
 class _BollyWordGridAppState extends State<BollyWordGridApp>
     with WidgetsBindingObserver {
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+
   @override
   void initState() {
     super.initState();
@@ -46,9 +48,17 @@ class _BollyWordGridAppState extends State<BollyWordGridApp>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Pause music when app is backgrounded, resume when foregrounded.
-    final contextMounted = mounted ? context : null;
-    if (contextMounted == null) return;
-    final feedback = Provider.of<FeedbackController>(contextMounted, listen: false);
+    final navContext = _navigatorKey.currentContext;
+    if (navContext == null) {
+      return;
+    }
+
+    FeedbackController feedback;
+    try {
+      feedback = Provider.of<FeedbackController>(navContext, listen: false);
+    } on ProviderNotFoundException {
+      return;
+    }
     switch (state) {
       case AppLifecycleState.paused:
       case AppLifecycleState.inactive:
@@ -126,6 +136,7 @@ class _BollyWordGridAppState extends State<BollyWordGridApp>
             themeMode: ThemeMode.light,
             theme: themeData,
             darkTheme: darkTheme,
+            navigatorKey: _navigatorKey,
             initialRoute: '/',
             routes: {
               '/': (context) => const boot.BootScreen(),

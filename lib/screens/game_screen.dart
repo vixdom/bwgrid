@@ -17,6 +17,8 @@ import '../services/animation_manager.dart';
 import '../models/stage_scene.dart';
 import '../services/game_persistence.dart';
 
+enum _SecretCorner { topRight, bottomRight, bottomLeft, topLeft }
+
 class GameScreen extends StatefulWidget {
   const GameScreen({super.key});
 
@@ -109,6 +111,14 @@ class _GameScreenState extends State<GameScreen>
     return false;
   }
   static const int gridSize = 12;
+  static const List<_SecretCorner> _autoCompleteSequence = <_SecretCorner>[
+    _SecretCorner.topRight,
+    _SecretCorner.bottomRight,
+    _SecretCorner.bottomLeft,
+    _SecretCorner.topLeft,
+  ];
+  static const List<int> _autoCompleteTapTargets = <int>[1, 2, 3, 4];
+  static const Duration _autoCompleteResetDelay = Duration(seconds: 6);
   List<List<String>>? grid;
   SelectionController? _sel;
   bool _showConfetti = false;
@@ -148,6 +158,10 @@ class _GameScreenState extends State<GameScreen>
   bool _restoringFromSave = false;
   Timer? _saveDebounce;
   Timer? _clapboardTimer;
+  Timer? _autoCompleteResetTimer;
+  int _autoCompleteStage = 0;
+  int _autoCompleteTapCount = 0;
+  bool _autoCompleting = false;
   final GamePersistence _gamePersistence = const GamePersistence();
   bool _showProgressPath = false;
   bool _hasShownHintReminder = false;
@@ -211,6 +225,10 @@ class _GameScreenState extends State<GameScreen>
     final col = (details.localPosition.dx / cell).floor();
     final row = (details.localPosition.dy / cell).floor();
     if (row >= 0 && row < gridSize && col >= 0 && col < gridSize) {
+      _handleAutoCompleteTap(row, col);
+      if (_autoCompleting) {
+        return;
+      }
       setState(() {
         _sel!.beginAt(Offset(row.toDouble(), col.toDouble()));
       });
@@ -261,7 +279,8 @@ class _GameScreenState extends State<GameScreen>
         TextDirection.ltr,
       );
       if (_sel?.isComplete == true) {
-        _cancelSceneTimer();
+        _resetAutoCompleteSequence();
+        await _cancelSceneTimer(resumeBackground: true);
         setState(() {
           _sceneActive = false;
         });
@@ -393,7 +412,7 @@ class _GameScreenState extends State<GameScreen>
     );
     controller.restoreFoundWords(state.foundWords);
 
-    _cancelSceneTimer();
+  await _cancelSceneTimer(resumeBackground: false);
     _restoringFromSave = true;
 
     setState(() {
@@ -430,7 +449,7 @@ class _GameScreenState extends State<GameScreen>
         _sceneActive && _isTimedScene && (_remainingSeconds ?? 0) > 0;
     if (shouldResumeTimer) {
       final remaining = _remainingSeconds!.clamp(0, 5999).toInt();
-      _startSceneTimer(Duration(seconds: remaining));
+      await _startSceneTimer(Duration(seconds: remaining));
     }
 
     _showSceneIntro();
@@ -452,6 +471,125 @@ class _GameScreenState extends State<GameScreen>
       _saveDebounce = null;
       unawaited(_persistGameState());
     });
+  }
+
+  void _resetAutoCompleteSequence() {
+    _autoCompleteResetTimer?.cancel();
+    _autoCompleteResetTimer = null;
+    _autoCompleteStage = 0;
+    _autoCompleteTapCount = 0;
+  }
+
+  void _scheduleAutoCompleteTimeout() {
+    _autoCompleteResetTimer?.cancel();
+    _autoCompleteResetTimer =
+        Timer(_autoCompleteResetDelay, _resetAutoCompleteSequence);
+  }
+
+  bool _cellMatchesCorner(int row, int col, _SecretCorner corner) {
+    final maxIndex = gridSize - 1;
+    switch (corner) {
+      case _SecretCorner.topRight:
+        return row == 0 && col == maxIndex;
+      case _SecretCorner.bottomRight:
+        return row == maxIndex && col == maxIndex;
+      case _SecretCorner.bottomLeft:
+        return row == maxIndex && col == 0;
+      case _SecretCorner.topLeft:
+        return row == 0 && col == 0;
+    }
+  }
+
+  void _handleAutoCompleteTap(int row, int col) {
+    if (_sel == null || !_sceneActive || _timeExpired || _autoCompleting) {
+      _resetAutoCompleteSequence();
+      return;
+    }
+    if (_autoCompleteStage >= _autoCompleteSequence.length) {
+      _resetAutoCompleteSequence();
+    }
+
+    final corner = _autoCompleteSequence[_autoCompleteStage];
+    if (_cellMatchesCorner(row, col, corner)) {
+      _autoCompleteTapCount++;
+      _scheduleAutoCompleteTimeout();
+      final required = _autoCompleteTapTargets[_autoCompleteStage];
+      if (_autoCompleteTapCount >= required) {
+        _autoCompleteStage++;
+        _autoCompleteTapCount = 0;
+        if (_autoCompleteStage >= _autoCompleteSequence.length) {
+          _resetAutoCompleteSequence();
+          unawaited(_autoCompletePuzzle());
+        }
+      }
+    } else {
+      final matchesStart =
+          _cellMatchesCorner(row, col, _autoCompleteSequence.first);
+      _resetAutoCompleteSequence();
+      if (matchesStart) {
+        _autoCompleteTapCount = 1;
+        _scheduleAutoCompleteTimeout();
+      }
+    }
+  }
+
+  Future<void> _autoCompletePuzzle() async {
+    if (!mounted) return;
+    final controller = _sel;
+    if (controller == null || controller.isComplete) {
+      return;
+    }
+    final remaining = controller.remainingWords.toList(growable: false);
+    if (remaining.isEmpty) {
+      return;
+    }
+
+    _autoCompleting = true;
+    try {
+      final gc = context.read<GameController>();
+      bool allowHintReminder = !_hasShownHintReminder;
+      int wordsAdded = 0;
+
+      for (final word in remaining) {
+        final path = controller.pathForWord(word);
+        if (path == null) {
+          continue;
+        }
+        final added = controller.forceAddWord(word, path);
+        if (added != null) {
+          wordsAdded++;
+          _changeScore(10, allowHintReminder: allowHintReminder);
+          allowHintReminder = false;
+        }
+      }
+
+      if (wordsAdded == 0) {
+        return;
+      }
+
+      _selectionNotifier.value = controller;
+
+      if (!_hintUnlocked && score >= 20) {
+        _hintUnlockedNotifier.value = true;
+      }
+
+      if (!controller.isComplete) {
+        return;
+      }
+
+      await _cancelSceneTimer(resumeBackground: true);
+      if (!mounted) return;
+      setState(() {
+        _sceneActive = false;
+      });
+      await gc.onPuzzleComplete(playSound: false);
+      _spawnConfetti();
+      _schedulePersistGameState(immediate: true);
+    } catch (e) {
+      debugPrint('Error during autocomplete cheat: $e');
+    } finally {
+      _autoCompleting = false;
+    }
   }
 
   Future<void> _persistGameState() async {
@@ -493,7 +631,7 @@ class _GameScreenState extends State<GameScreen>
     for (var i = 0; i < _sceneSchedule.length; i++) {
       debugPrint('🎬   Scene $i: ${_sceneSchedule[i].title} (${_sceneSchedule[i].mode})');
     }
-    _cancelSceneTimer();
+  await _cancelSceneTimer(resumeBackground: true);
     final dict = await ThemeDictionary.loadFromAsset(
       'assets/key and themes.txt',
     );
@@ -518,6 +656,7 @@ class _GameScreenState extends State<GameScreen>
   }
 
   Future<void> _loadPuzzle() async {
+    debugPrint('🎬 _loadPuzzle called for scene ${_currentSceneIndex + 1} (${_currentScene.title})');
     final dict = _themeDictionary ?? await ThemeDictionary.loadFromAsset(
       'assets/key and themes.txt',
     );
@@ -594,6 +733,7 @@ class _GameScreenState extends State<GameScreen>
     // Reset celebration flag so fireworks can play again
     final gc = context.read<GameController>();
     gc.resetCelebration();
+    _resetAutoCompleteSequence();
 
     setState(() {
       _themeTitle = theme.name.toUpperCase();
@@ -616,10 +756,12 @@ class _GameScreenState extends State<GameScreen>
       _dangerHapticTriggered = false;
     });
 
-    _cancelSceneTimer();
+    await _cancelSceneTimer(resumeBackground: !_isTimedScene);
     if (_isTimedScene && _currentScene.timeLimit != null) {
-      _startSceneTimer(_currentScene.timeLimit!);
+      debugPrint('🎬 Starting timer for timed scene: ${_currentScene.title}');
+      await _startSceneTimer(_currentScene.timeLimit!);
     } else {
+      debugPrint('🎬 Scene loaded: ${_currentScene.title}, timed: $_isTimedScene');
       setState(() {
         _remainingSeconds = null;
         _sceneDurationSeconds = null;
@@ -653,7 +795,44 @@ class _GameScreenState extends State<GameScreen>
 
     if (puzzle == null) {
       debugPrint('Failed to generate a valid puzzle after $maxAttempts attempts');
-      return;
+      debugPrint('Using basic fallback grid for Scene ${_currentScene.index}');
+      
+      // Fallback: Create a simple grid with words placed horizontally
+      final grid = List.generate(
+        gridSize,
+        (_) => List<String>.filled(gridSize, '', growable: false),
+        growable: false,
+      );
+      final rnd = Random();
+      int row = 0;
+      int col = 0;
+      final wordsToPlace = chosen.map((c) => c.answer.toUpperCase()).toList();
+      
+      for (final word in wordsToPlace) {
+        // If word doesn't fit in current row, move to next row
+        if (col + word.length > gridSize) {
+          row++;
+          col = 0;
+          if (row >= gridSize) break; // No more rows
+        }
+        // Place the word
+        for (int i = 0; i < word.length && col + i < gridSize; i++) {
+          grid[row][col + i] = word[i];
+        }
+        col += word.length + 1; // Space between words
+      }
+      
+      // Fill remaining empty cells with random letters
+      for (int r = 0; r < gridSize; r++) {
+        for (int c = 0; c < gridSize; c++) {
+          if (grid[r][c].isEmpty) {
+            grid[r][c] = String.fromCharCode(65 + rnd.nextInt(26));
+          }
+        }
+      }
+      
+      puzzle = _Puzzle(grid: grid, words: wordsToPlace);
+      debugPrint('Fallback grid created with ${wordsToPlace.length} words');
     }
 
     // Success: apply puzzle grid and initialize selection controller
@@ -674,13 +853,16 @@ class _GameScreenState extends State<GameScreen>
     _schedulePersistGameState();
   }
 
-  void _cancelSceneTimer() {
+  Future<void> _cancelSceneTimer({bool resumeBackground = false}) async {
     _sceneTimer?.cancel();
     _sceneTimer = null;
+    // Stop countdown music when timer is cancelled
+    final gc = context.read<GameController>();
+    await gc.feedback.stopCountdownMusic(resumeBackground: resumeBackground);
   }
 
-  void _startSceneTimer(Duration limit) {
-    _cancelSceneTimer();
+  Future<void> _startSceneTimer(Duration limit) async {
+    await _cancelSceneTimer(resumeBackground: false);
     final totalSeconds = limit.inSeconds;
     if (totalSeconds <= 0) {
       setState(() {
@@ -693,6 +875,12 @@ class _GameScreenState extends State<GameScreen>
       _remainingSeconds = totalSeconds;
       _sceneDurationSeconds ??= totalSeconds;
     });
+    
+    // Start countdown music for timed scenes
+    final gc = context.read<GameController>();
+    debugPrint('🎬 Starting countdown music for scene: ${_currentScene.title}');
+    await gc.feedback.startCountdownMusic();
+    
     _sceneTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) {
         timer.cancel();
@@ -720,6 +908,9 @@ class _GameScreenState extends State<GameScreen>
 
   void _playMetronomeTick(int remainingSeconds) {
     final gc = context.read<GameController>();
+    if (gc.feedback.countdownActive) {
+      return;
+    }
     if (!_dangerHapticTriggered && remainingSeconds <= 20) {
       _dangerHapticTriggered = true;
       unawaited(gc.feedback.hapticLight());
@@ -797,7 +988,7 @@ class _GameScreenState extends State<GameScreen>
 
   void _handleTimeExpired() {
     if (_timeExpired) return;
-    _cancelSceneTimer();
+    unawaited(_cancelSceneTimer(resumeBackground: true));
     setState(() {
       _timeExpired = true;
       _sceneActive = false;
@@ -2098,7 +2289,7 @@ class _GameScreenState extends State<GameScreen>
     // (safe to fire-and-forget during widget disposal)
     InterstitialAdManager.instance.dispose();
     _bannerAd?.dispose();
-    _cancelSceneTimer();
+  unawaited(_cancelSceneTimer());
     // Release animation controller back to pool
     AnimationManager().releaseController(_confettiController, id: 'confetti');
     // Dispose ValueNotifiers
@@ -2108,6 +2299,7 @@ class _GameScreenState extends State<GameScreen>
     _selectionNotifier.dispose();
     _saveDebounce?.cancel();
     _clapboardTimer?.cancel();
+    _autoCompleteResetTimer?.cancel();
     super.dispose();
   }
 }
