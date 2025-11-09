@@ -1,46 +1,497 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+import '../constants/app_themes.dart';
+import '../services/settings_repository.dart';
 import '../models/feedback_settings.dart';
 import '../services/feedback_controller.dart';
+import '../services/game_persistence.dart';
+import '../services/achievements_service.dart';
+import '../widgets/glass_surface.dart';
+import 'privacy_policy_screen.dart';
 
-class OptionsScreen extends StatelessWidget {
+class OptionsScreen extends StatefulWidget {
   const OptionsScreen({super.key});
+
+  @override
+  State<OptionsScreen> createState() => _OptionsScreenState();
+}
+
+class _OptionsScreenState extends State<OptionsScreen> {
+  final _repo = SettingsRepository();
+  bool _loaded = false;
+  BannerAd? _bannerAd;
+  bool _isAdLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _init();
+    _loadBannerAd();
+  }
+
+  Future<void> _init() async {
+    await _repo.load();
+    if (!mounted) return;
+    setState(() => _loaded = true);
+  }
+
+  Future<void> _resetAllProgress() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reset All Progress'),
+        content: const Text(
+          'This will erase all achievements, progress, and saved games. This action cannot be undone. Are you sure?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Reset'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        // Clear saved game state (this will force restart from Screen 1, Scene 1)
+        const gamePersistence = GamePersistence();
+        await gamePersistence.clear();
+
+        // Reset achievements
+        final achievements = context.read<AchievementsService>();
+        await achievements.resetAllAchievements();
+
+        // Reset settings to defaults
+        final settings = context.read<FeedbackSettings>();
+        settings.setSoundEnabled(true);
+        settings.setMusicEnabled(true);
+        settings.setHapticsEnabled(true);
+        settings.setHintsEnabled(true);
+        unawaited(
+          context.read<FeedbackController>().setBackgroundMusicEnabled(true),
+        );
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'All progress has been reset. Restart the app to begin from Screen 1.',
+              ),
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error resetting progress: $e'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  void _loadBannerAd() {
+    _bannerAd = BannerAd(
+      adUnitId: 'ca-app-pub-4369020643957506/1487020917',
+      size: AdSize.banner,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          if (!mounted) return;
+          setState(() => _isAdLoaded = true);
+        },
+        onAdFailedToLoad: (ad, error) {
+          ad.dispose();
+          if (!mounted) return;
+          setState(() => _isAdLoaded = false);
+        },
+      ),
+    );
+    _bannerAd!.load();
+  }
+
+  @override
+  void dispose() {
+    _bannerAd?.dispose();
+    super.dispose();
+  }
+
+  void _saveSnack() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Saved'),
+        duration: Duration(milliseconds: 900),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<FeedbackSettings>();
-  final controller = context.watch<FeedbackController>();
-
+    final isDark = settings.theme == AppTheme.kashyap;
+    final theme = Theme.of(context);
+    final versionStyle = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
+    );
+    final mediaQuery = MediaQuery.of(context);
+    
     return Scaffold(
-      appBar: AppBar(title: const Text('Options')),
-      body: Center(
+      extendBodyBehindAppBar: true,
+      appBar: const _GlassOptionsAppBar(title: 'Options'),
+      body: !_loaded
+          ? const Center(child: CircularProgressIndicator())
+          : Stack(
+              fit: StackFit.expand,
+              children: [
+                // Themed background
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: Image.asset(
+                      isDark
+                          ? 'assets/Options_Dark.png'
+                          : 'assets/Options_Light.png',
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+                SafeArea(
+                  top: false,
+                  child: ListView(
+                    padding: EdgeInsets.fromLTRB(
+                      16,
+                      mediaQuery.padding.top + _GlassOptionsAppBar.preferredHeight + 16,
+                      16,
+                      24,
+                    ),
+                    children: [
+                      // Sound section
+                      BwSectionCard(
+                        title: 'Sound',
+                        child: Column(
+                          children: [
+                            _SettingTile(
+                              key: const Key('soundSwitch'),
+                              title: 'Sound effects',
+                              subtitle:
+                                  'Grid taps, word found jingles, and alerts',
+                              value: _repo.soundEnabled,
+                              onChanged: (v) {
+                                setState(() => _repo.setSound(v));
+                                // propagate to app-wide settings
+                                context
+                                    .read<FeedbackSettings>()
+                                    .setSoundEnabled(v);
+                                _saveSnack();
+                              },
+                              iconOn: Icons.volume_up,
+                              iconOff: Icons.volume_off_outlined,
+                            ),
+                            const Divider(height: 0),
+                            _SettingTile(
+                                    key: const Key('hapticsSwitch'),
+                                    title: 'Haptics',
+                                    subtitle:
+                                        'Vibration cues for taps, timers, and celebrations',
+                                    value: _repo.hapticsEnabled,
+                                    onChanged: (v) {
+                                      setState(() => _repo.setHaptics(v));
+                                      // propagate to app-wide settings
+                                      context
+                                          .read<FeedbackSettings>()
+                                          .setHapticsEnabled(v);
+                                      // Gentle acknowledgement only when enabling
+                                      if (v) {
+                                        // Fire-and-forget; FeedbackController honors current settings
+                                        unawaited(
+                                          context
+                                              .read<FeedbackController>()
+                                              .hapticLight(),
+                                        );
+                                      }
+                                      _saveSnack();
+                                    },
+                                    iconOn: Icons.vibration,
+                                    iconOff: Icons.vibration_outlined,
+                                  ),
+                                  const Divider(height: 0),
+                                  _SettingTile(
+                                    key: const Key('musicSwitch'),
+                                    title: 'Music',
+                                    subtitle:
+                                        'Low-volume ambient score during play',
+                                    value: _repo.musicEnabled,
+                                    onChanged: (v) {
+                                      setState(() => _repo.setMusic(v));
+                                      final feedbackSettings = context
+                                          .read<FeedbackSettings>();
+                                      feedbackSettings.setMusicEnabled(v);
+                                      final feedbackController = context
+                                          .read<FeedbackController>();
+                                      unawaited(
+                                        feedbackController
+                                            .setBackgroundMusicEnabled(v),
+                                      );
+                                      _saveSnack();
+                                    },
+                                    iconOn: Icons.music_note,
+                                    iconOff: Icons.music_off,
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            const SizedBox(height: 16),
+
+                            // Themes section
+                            BwSectionCard(
+                              title: 'Themes',
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: _ThemeSwatch(
+                                      key: const Key('swatch_Kashyap'),
+                                      theme: AppTheme.kashyap,
+                                      selected: _repo.theme == AppTheme.kashyap,
+                                      title: 'Kashyap',
+                                      subtitle: 'Dark and moody',
+                                      onTap: () {
+                                        setState(
+                                          () => _repo.setTheme(AppTheme.kashyap),
+                                        );
+                                        context.read<FeedbackSettings>().setTheme(
+                                          AppTheme.kashyap,
+                                        );
+                                        _saveSnack();
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: _ThemeSwatch(
+                                      key: const Key('swatch_Hirani'),
+                                      theme: AppTheme.hirani,
+                                      selected: _repo.theme == AppTheme.hirani,
+                                      title: 'Hirani',
+                                      subtitle: 'Clean light',
+                                      onTap: () {
+                                        setState(
+                                          () => _repo.setTheme(AppTheme.hirani),
+                                        );
+                                        context.read<FeedbackSettings>().setTheme(
+                                          AppTheme.hirani,
+                                        );
+                                        _saveSnack();
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            const SizedBox(height: 16),
+
+                            // Gameplay section
+                            BwSectionCard(
+                              title: 'Game play',
+                              child: Column(
+                                children: [
+                                  _SettingTile(
+                                    key: const Key('hintsSwitch'),
+                                    title: 'Hints',
+                                    subtitle: _repo.hintsEnabled
+                                        ? 'Each hint costs 15 tickets'
+                                        : null,
+                                    value: _repo.hintsEnabled,
+                                    onChanged: (v) {
+                                      setState(() => _repo.setHints(v));
+                                      // propagate to app-wide settings
+                                      context
+                                          .read<FeedbackSettings>()
+                                          .setHintsEnabled(v);
+                                      _saveSnack();
+                                    },
+                                    iconOn: Icons.tips_and_updates,
+                                    iconOff: Icons.tips_and_updates_outlined,
+                                  ),
+                                  const Divider(height: 0),
+                                  _SettingTile.disabled(
+                                    key: const Key('selectIndustriesDisabled'),
+                                    title: 'Select movie industries',
+                                    trailingPill: 'Coming soon',
+                                    iconOn: Icons.local_movies,
+                                    iconOff: Icons.local_movies_outlined,
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            const SizedBox(height: 16),
+
+                            // About section
+                            BwSectionCard(
+                              title: 'About',
+                              child: ListTile(
+                                leading: const Icon(Icons.privacy_tip),
+                                title: const Text('Privacy Policy'),
+                                subtitle: const Text(
+                                  'How we collect and use your data',
+                                ),
+                                onTap: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const PrivacyPolicyScreen(),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+
+                            const SizedBox(height: 16),
+
+                            // Ad and version widgets
+                            if (_isAdLoaded && _bannerAd != null) ...[
+                              const SizedBox(height: 16),
+                              Center(
+                                child: SizedBox(
+                                  width: _bannerAd!.size.width.toDouble(),
+                                  height: _bannerAd!.size.height.toDouble(),
+                                  child: AdWidget(ad: _bannerAd!),
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 12),
+                            Center(
+                              child: Text('Version v2.1', style: versionStyle),
+                            ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+}
+
+class _GlassOptionsAppBar extends StatelessWidget implements PreferredSizeWidget {
+  const _GlassOptionsAppBar({required this.title});
+
+  final String title;
+
+  static const double preferredHeight = 72;
+
+  @override
+  Size get preferredSize => const Size.fromHeight(preferredHeight);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final iconColor = theme.colorScheme.onSurface.withValues(alpha: 0.85);
+
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+  child: GlassSurface(
+          borderRadius: BorderRadius.circular(24),
+          backgroundGradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: isDark
+                ? [
+                    Colors.white.withValues(alpha: 0.12),
+                    Colors.white.withValues(alpha: 0.05),
+                  ]
+                : [
+                    Colors.white.withValues(alpha: 0.45),
+                    Colors.white.withValues(alpha: 0.2),
+                  ],
+          ),
+          borderColor: Colors.white.withValues(alpha: isDark ? 0.22 : 0.35),
+          elevationColor: Colors.black.withValues(alpha: isDark ? 0.32 : 0.16),
+          child: Material(
+            type: MaterialType.transparency,
+            child: SizedBox(
+              height: preferredHeight,
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                    color: iconColor,
+                    onPressed: () => Navigator.of(context).maybePop(),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: iconColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class BwSectionCard extends StatelessWidget {
+  const BwSectionCard({super.key, required this.title, required this.child});
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+  return GlassSurface(
+      borderRadius: BorderRadius.circular(26),
+      backgroundGradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: isDark
+            ? [
+                Colors.white.withValues(alpha: 0.1),
+                Colors.white.withValues(alpha: 0.05),
+              ]
+            : [
+                Colors.white.withValues(alpha: 0.38),
+                Colors.white.withValues(alpha: 0.18),
+              ],
+      ),
+      borderColor: Colors.white.withValues(alpha: isDark ? 0.2 : 0.28),
+      elevationColor: Colors.black.withValues(alpha: isDark ? 0.35 : 0.18),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('booya!'),
-            SwitchListTile(
-              title: const Text('Sound'),
-              value: settings.soundEnabled,
-              onChanged: (v) {
-                settings.setSoundEnabled(v);
-                controller.onSettingsChanged();
-              },
-            ),
-            const SizedBox(height: 24),
-            SoundRow(controller: controller),
+            _SectionHeader(title: title),
             const SizedBox(height: 12),
-            _StatusText('Tick', controller.tickReady, controller.tickAssetName, controller.tickDurationMs, controller.tickError),
-            _StatusText('Found', controller.foundReady, controller.foundAssetName, controller.foundDurationMs, controller.foundError),
-            _StatusText('Invalid', controller.invalidReady, controller.invalidAssetName, controller.invalidDurationMs, controller.invalidError),
-            _StatusText('Fireworks', controller.fireworksReady, controller.fireworksAssetName, controller.fireworksDurationMs, controller.fireworksError),
-            const SizedBox(height: 8),
-            ElevatedButton(
-              onPressed: () async {
-                await controller.reinitAll();
-              },
-              child: const Text('Retry Init'),
-            ),
+            child,
           ],
         ),
       ),
@@ -48,204 +499,206 @@ class OptionsScreen extends StatelessWidget {
   }
 }
 
-// Debug button widget for sound testing
-class DebugSoundButton extends StatefulWidget {
-  final FeedbackController controller;
-  const DebugSoundButton({super.key, required this.controller});
-
-  @override
-  State<DebugSoundButton> createState() => _DebugSoundButtonState();
-}
-
-class _DebugSoundButtonState extends State<DebugSoundButton> {
-  final List<_SoundEvent> events = const [
-    _SoundEvent('Tick (select.mp3)', 'playTick'),
-    _SoundEvent('Word Found (word_found.mp3)', 'playWordFound'),
-    _SoundEvent('Invalid (invalid.mp3)', 'playInvalid'),
-    _SoundEvent('Fireworks (fireworks.mp3)', 'playFireworks'),
-  ];
-  int current = 0;
-  bool playing = false;
-  String status = '';
-
-  Future<void> _playNext() async {
-    setState(() {
-      playing = true;
-      status = 'Playing: ${events[current].label}';
-    });
-    final controller = widget.controller;
-    switch (events[current].method) {
-      case 'playTick':
-        await controller.playTick();
-        break;
-      case 'playWordFound':
-        await controller.playWordFound();
-        break;
-      case 'playInvalid':
-        await controller.playInvalid();
-        break;
-      case 'playFireworks':
-        await controller.playFireworks();
-        break;
-    }
-    await Future.delayed(const Duration(seconds: 1));
-    setState(() {
-      current = (current + 1) % events.length;
-      playing = false;
-      status = '';
-    });
-  }
-
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title});
+  final String title;
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        ElevatedButton(
-          onPressed: playing ? null : _playNext,
-          child: Text(playing ? 'Playing...' : 'Debug Sounds'),
-        ),
-        if (status.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 8.0),
-            child: Text(status, style: const TextStyle(fontSize: 16)),
-          ),
-      ],
+    return Text(
+      title,
+      style: Theme.of(
+        context,
+      ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
     );
   }
 }
 
-class _SoundEvent {
-  final String label;
-  final String method;
-  const _SoundEvent(this.label, this.method);
-}
+class _SettingTile extends StatelessWidget {
+  const _SettingTile({
+    super.key,
+    required this.title,
+    this.subtitle,
+    required this.value,
+    required this.onChanged,
+    required this.iconOn,
+    required this.iconOff,
+  }) : _disabled = false,
+       trailingPill = null;
 
-class SoundRow extends StatelessWidget {
-  final FeedbackController controller;
-  const SoundRow({super.key, required this.controller});
+  const _SettingTile.disabled({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.trailingPill,
+    required this.iconOn,
+    required this.iconOff,
+  }) : value = false,
+       onChanged = null,
+       _disabled = true;
 
-  @override
-  Widget build(BuildContext context) {
-    final textStyle = Theme.of(context).textTheme.bodySmall;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _SoundButton(
-              label: 'Tick',
-              filename: controller.tickAssetName,
-              durationMs: controller.tickDurationMs,
-              onPressed: () async {
-                await controller.stopAll();
-                await controller.playTick();
-              },
-            ),
-            const SizedBox(width: 8),
-            _SoundButton(
-              label: 'Found',
-              filename: controller.foundAssetName,
-              durationMs: controller.foundDurationMs,
-              onPressed: () async {
-                await controller.stopAll();
-                await controller.playWordFound();
-              },
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _SoundButton(
-              label: 'Invalid',
-              filename: controller.invalidAssetName,
-              durationMs: controller.invalidDurationMs,
-              onPressed: () async {
-                await controller.stopAll();
-                await controller.playInvalid();
-              },
-            ),
-            const SizedBox(width: 8),
-            _SoundButton(
-              label: 'Fireworks',
-              filename: controller.fireworksAssetName,
-              durationMs: controller.fireworksDurationMs,
-              onPressed: () async {
-                await controller.stopAll();
-                await controller.playFireworks();
-              },
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text('Tap to play. Filename shown below each button.', style: textStyle),
-      ],
-    );
-  }
-}
-
-class _SoundButton extends StatelessWidget {
-  final String label;
-  final String filename;
-  final int? durationMs;
-  final Future<void> Function() onPressed;
-  const _SoundButton({
-    required this.label,
-    required this.filename,
-    required this.durationMs,
-    required this.onPressed,
-  });
+  final String title;
+  final String? subtitle;
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+  final IconData iconOn;
+  final IconData iconOff;
+  final String? trailingPill;
+  final bool _disabled;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    final theme = Theme.of(context);
+    final base = Row(
       children: [
-        ElevatedButton(
-          onPressed: onPressed,
-          child: Text(label),
-        ),
-        const SizedBox(height: 4),
-        SizedBox(
-          width: 140,
+        Icon(value ? iconOn : iconOff),
+        const SizedBox(width: 12),
+        Expanded(
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                filename,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.labelSmall,
-                overflow: TextOverflow.ellipsis,
+                title,
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-              if (durationMs != null)
-                Text(
-                  '${durationMs}ms',
-                  style: Theme.of(context).textTheme.labelSmall,
+              if (subtitle != null)
+                AnimatedOpacity(
+                  duration: const Duration(milliseconds: 200),
+                  opacity: 0.8,
+                  child: Text(subtitle!, style: theme.textTheme.bodySmall),
                 ),
             ],
           ),
         ),
+        if (_disabled)
+          _ComingSoonPill(text: trailingPill ?? 'Coming soon')
+        else
+          Semantics(
+            container: true,
+            label: '$title toggle',
+            child: Switch.adaptive(value: value, onChanged: onChanged),
+          ),
       ],
+    );
+
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 200),
+      opacity: _disabled ? 0.6 : 1.0,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 56, minWidth: 44),
+          child: base,
+        ),
+      ),
     );
   }
 }
 
-class _StatusText extends StatelessWidget {
-  final String label;
-  final bool ready;
-  final String filename;
-  final int? durationMs;
-  final String? error;
-  const _StatusText(this.label, this.ready, this.filename, this.durationMs, this.error);
+class _ComingSoonPill extends StatelessWidget {
+  const _ComingSoonPill({required this.text});
+  final String text;
   @override
   Widget build(BuildContext context) {
-    final style = Theme.of(context).textTheme.labelSmall;
-    final status = ready ? 'ready' : 'not ready';
-    final dur = durationMs != null ? ', ${durationMs}ms' : '';
-    final err = error != null ? ' — $error' : '';
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Text('$label: $status ($filename$dur)$err', style: style),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: Theme.of(context).colorScheme.primary,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _ThemeSwatch extends StatelessWidget {
+  const _ThemeSwatch({
+    super.key,
+    required this.theme,
+    required this.selected,
+    required this.title,
+    this.subtitle,
+    required this.onTap,
+  });
+  final AppTheme theme;
+  final bool selected;
+  final String title;
+  final String? subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final td = AppThemes.themeData(theme);
+    final primary = td.colorScheme.primary; // ignore: unused_local_variable
+    final secondary = td.colorScheme.secondary; // ignore: unused_local_variable
+    final surface = Theme.of(context).colorScheme.surface;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOut,
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: selected
+              ? Theme.of(context).colorScheme.primary
+              : Theme.of(context).dividerColor,
+          width: selected ? 2 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        if (subtitle != null)
+                          Opacity(
+                            opacity: 0.8,
+                            child: Text(
+                              subtitle!,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  AnimatedOpacity(
+                    duration: const Duration(milliseconds: 200),
+                    opacity: selected ? 1 : 0,
+                    child: const Icon(Icons.check_circle, color: Colors.green),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
