@@ -17,7 +17,7 @@ val keystoreProps = Properties().apply {
 
 android {
     namespace = "com.moviemasala.wordsearch"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -32,7 +32,7 @@ android {
     defaultConfig {
         applicationId = "com.moviemasala.wordsearch"
         minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        targetSdk = 36
         // Align with pubspec.yaml if properties are provided by Flutter tooling
         val flutterVersionCode = project.findProperty("flutter.versionCode")?.toString()?.toIntOrNull()
         val flutterVersionName = project.findProperty("flutter.versionName")?.toString()

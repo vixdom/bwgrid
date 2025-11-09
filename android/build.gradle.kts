@@ -20,6 +20,10 @@ subprojects {
 }
 
 subprojects {
+    project.extensions.findByType<com.android.build.gradle.BaseExtension>()?.apply {
+        compileSdkVersion(36)
+    }
+    
     tasks.withType<KotlinCompile>().configureEach {
         kotlinOptions.jvmTarget = "11"
     }

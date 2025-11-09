@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -146,59 +147,67 @@ class _OptionsScreenState extends State<OptionsScreen> {
     final isDark = settings.theme == AppTheme.kashyap;
     final theme = Theme.of(context);
     final versionStyle = theme.textTheme.bodySmall?.copyWith(
-      color: theme.colorScheme.onSurface.withOpacity(0.65),
+      color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
     );
+    final mediaQuery = MediaQuery.of(context);
+    
     return Scaffold(
-      appBar: AppBar(title: const Text('Options')),
+      extendBodyBehindAppBar: true,
+      appBar: const _GlassOptionsAppBar(title: 'Options'),
       body: !_loaded
           ? const Center(child: CircularProgressIndicator())
-          : SafeArea(
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  // Themed background
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: Image.asset(
-                        isDark
-                            ? 'assets/Options_Dark.png'
-                            : 'assets/Options_Light.png',
-                        fit: BoxFit.cover,
-                      ),
+          : Stack(
+              fit: StackFit.expand,
+              children: [
+                // Themed background
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: Image.asset(
+                      isDark
+                          ? 'assets/Options_Dark.png'
+                          : 'assets/Options_Light.png',
+                      fit: BoxFit.cover,
                     ),
                   ),
-                  Column(
+                ),
+                SafeArea(
+                  top: false,
+                  child: ListView(
+                    padding: EdgeInsets.fromLTRB(
+                      16,
+                      mediaQuery.padding.top + _GlassOptionsAppBar.preferredHeight + 16,
+                      16,
+                      24,
+                    ),
                     children: [
-                      Expanded(
-                        child: ListView(
-                          padding: const EdgeInsets.all(16),
+                      // Sound section
+                      BwSectionCard(
+                        title: 'Sound',
+                        child: Column(
                           children: [
-                            // Sound section
-                            BwSectionCard(
-                              title: 'Sound',
-                              child: Column(
-                                children: [
-                                  _SettingTile(
-                                    key: const Key('soundSwitch'),
-                                    title: 'Sound effects',
-                                    subtitle: 'Grid taps, word found jingles, and alerts',
-                                    value: _repo.soundEnabled,
-                                    onChanged: (v) {
-                                      setState(() => _repo.setSound(v));
-                                      // propagate to app-wide settings
-                                      context
-                                          .read<FeedbackSettings>()
-                                          .setSoundEnabled(v);
-                                      _saveSnack();
-                                    },
-                                    iconOn: Icons.volume_up,
-                                    iconOff: Icons.volume_off_outlined,
-                                  ),
-                                  const Divider(height: 0),
-                                  _SettingTile(
+                            _SettingTile(
+                              key: const Key('soundSwitch'),
+                              title: 'Sound effects',
+                              subtitle:
+                                  'Grid taps, word found jingles, and alerts',
+                              value: _repo.soundEnabled,
+                              onChanged: (v) {
+                                setState(() => _repo.setSound(v));
+                                // propagate to app-wide settings
+                                context
+                                    .read<FeedbackSettings>()
+                                    .setSoundEnabled(v);
+                                _saveSnack();
+                              },
+                              iconOn: Icons.volume_up,
+                              iconOff: Icons.volume_off_outlined,
+                            ),
+                            const Divider(height: 0),
+                            _SettingTile(
                                     key: const Key('hapticsSwitch'),
                                     title: 'Haptics',
-                                    subtitle: 'Vibration cues for taps, timers, and celebrations',
+                                    subtitle:
+                                        'Vibration cues for taps, timers, and celebrations',
                                     value: _repo.hapticsEnabled,
                                     onChanged: (v) {
                                       setState(() => _repo.setHaptics(v));
@@ -224,7 +233,8 @@ class _OptionsScreenState extends State<OptionsScreen> {
                                   _SettingTile(
                                     key: const Key('musicSwitch'),
                                     title: 'Music',
-                                    subtitle: 'Low-volume ambient score during play',
+                                    subtitle:
+                                        'Low-volume ambient score during play',
                                     value: _repo.musicEnabled,
                                     onChanged: (v) {
                                       setState(() => _repo.setMusic(v));
@@ -251,41 +261,44 @@ class _OptionsScreenState extends State<OptionsScreen> {
                             // Themes section
                             BwSectionCard(
                               title: 'Themes',
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                              child: Row(
                                 children: [
-                                  _ThemeSwatch(
-                                    key: const Key('swatch_Kashyap'),
-                                    theme: AppTheme.kashyap,
-                                    selected: _repo.theme == AppTheme.kashyap,
-                                    title: 'Kashyap',
-                                    subtitle: 'Dark and moody',
-                                    onTap: () {
-                                      setState(
-                                        () => _repo.setTheme(AppTheme.kashyap),
-                                      );
-                                      context.read<FeedbackSettings>().setTheme(
-                                        AppTheme.kashyap,
-                                      );
-                                      _saveSnack();
-                                    },
+                                  Expanded(
+                                    child: _ThemeSwatch(
+                                      key: const Key('swatch_Kashyap'),
+                                      theme: AppTheme.kashyap,
+                                      selected: _repo.theme == AppTheme.kashyap,
+                                      title: 'Kashyap',
+                                      subtitle: 'Dark and moody',
+                                      onTap: () {
+                                        setState(
+                                          () => _repo.setTheme(AppTheme.kashyap),
+                                        );
+                                        context.read<FeedbackSettings>().setTheme(
+                                          AppTheme.kashyap,
+                                        );
+                                        _saveSnack();
+                                      },
+                                    ),
                                   ),
-                                  const SizedBox(height: 12),
-                                  _ThemeSwatch(
-                                    key: const Key('swatch_Hirani'),
-                                    theme: AppTheme.hirani,
-                                    selected: _repo.theme == AppTheme.hirani,
-                                    title: 'Hirani',
-                                    subtitle: 'Clean light',
-                                    onTap: () {
-                                      setState(
-                                        () => _repo.setTheme(AppTheme.hirani),
-                                      );
-                                      context.read<FeedbackSettings>().setTheme(
-                                        AppTheme.hirani,
-                                      );
-                                      _saveSnack();
-                                    },
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: _ThemeSwatch(
+                                      key: const Key('swatch_Hirani'),
+                                      theme: AppTheme.hirani,
+                                      selected: _repo.theme == AppTheme.hirani,
+                                      title: 'Hirani',
+                                      subtitle: 'Clean light',
+                                      onTap: () {
+                                        setState(
+                                          () => _repo.setTheme(AppTheme.hirani),
+                                        );
+                                        context.read<FeedbackSettings>().setTheme(
+                                          AppTheme.hirani,
+                                        );
+                                        _saveSnack();
+                                      },
+                                    ),
                                   ),
                                 ],
                               ),
@@ -342,34 +355,104 @@ class _OptionsScreenState extends State<OptionsScreen> {
                                 onTap: () {
                                   Navigator.of(context).push(
                                     MaterialPageRoute(
-                                      builder: (context) => const PrivacyPolicyScreen(),
+                                      builder: (context) =>
+                                          const PrivacyPolicyScreen(),
                                     ),
                                   );
                                 },
                               ),
                             ),
 
-                            // Bottom helper text removed per request
-                            if (_isAdLoaded && _bannerAd != null)
-                              Container(
-                                alignment: Alignment.center,
-                                width: _bannerAd!.size.width.toDouble(),
-                                height: _bannerAd!.size.height.toDouble(),
-                                child: AdWidget(ad: _bannerAd!),
+                            const SizedBox(height: 16),
+
+                            // Ad and version widgets
+                            if (_isAdLoaded && _bannerAd != null) ...[
+                              const SizedBox(height: 16),
+                              Center(
+                                child: SizedBox(
+                                  width: _bannerAd!.size.width.toDouble(),
+                                  height: _bannerAd!.size.height.toDouble(),
+                                  child: AdWidget(ad: _bannerAd!),
+                                ),
                               ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Text('Version v2.1', style: versionStyle),
-                      ),
+                            ],
+                            const SizedBox(height: 12),
+                            Center(
+                              child: Text('Version v2.1', style: versionStyle),
+                            ),
                     ],
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+}
+
+class _GlassOptionsAppBar extends StatelessWidget implements PreferredSizeWidget {
+  const _GlassOptionsAppBar({required this.title});
+
+  final String title;
+
+  static const double preferredHeight = 72;
+
+  @override
+  Size get preferredSize => const Size.fromHeight(preferredHeight);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final iconColor = theme.colorScheme.onSurface.withValues(alpha: 0.85);
+
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+        child: _GlassSurface(
+          borderRadius: BorderRadius.circular(24),
+          backgroundGradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: isDark
+                ? [
+                    Colors.white.withValues(alpha: 0.12),
+                    Colors.white.withValues(alpha: 0.05),
+                  ]
+                : [
+                    Colors.white.withValues(alpha: 0.45),
+                    Colors.white.withValues(alpha: 0.2),
+                  ],
+          ),
+          borderColor: Colors.white.withValues(alpha: isDark ? 0.22 : 0.35),
+          elevationColor: Colors.black.withValues(alpha: isDark ? 0.32 : 0.16),
+          child: Material(
+            type: MaterialType.transparency,
+            child: SizedBox(
+              height: preferredHeight,
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                    color: iconColor,
+                    onPressed: () => Navigator.of(context).maybePop(),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: iconColor,
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -382,23 +465,27 @@ class BwSectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1A000000), // ~6% black
-            blurRadius: 16,
-            offset: Offset(0, 6),
-          ),
-        ],
-        border: Border.all(
-          color: theme.colorScheme.outline.withValues(alpha: 0.2),
-        ),
+    final isDark = theme.brightness == Brightness.dark;
+
+    return _GlassSurface(
+      borderRadius: BorderRadius.circular(26),
+      backgroundGradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: isDark
+            ? [
+                Colors.white.withValues(alpha: 0.1),
+                Colors.white.withValues(alpha: 0.05),
+              ]
+            : [
+                Colors.white.withValues(alpha: 0.38),
+                Colors.white.withValues(alpha: 0.18),
+              ],
       ),
+      borderColor: Colors.white.withValues(alpha: isDark ? 0.2 : 0.28),
+      elevationColor: Colors.black.withValues(alpha: isDark ? 0.35 : 0.18),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -406,6 +493,58 @@ class BwSectionCard extends StatelessWidget {
             const SizedBox(height: 12),
             child,
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GlassSurface extends StatelessWidget {
+  const _GlassSurface({
+    required this.child,
+    this.borderRadius,
+    this.backgroundGradient,
+    this.borderColor,
+    this.elevationColor,
+    this.blurAmount = 16,
+  });
+
+  final Widget child;
+  final BorderRadius? borderRadius;
+  final Gradient? backgroundGradient;
+  final Color? borderColor;
+  final Color? elevationColor;
+  final double blurAmount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: borderRadius,
+        boxShadow: elevationColor != null
+            ? [
+                BoxShadow(
+                  color: elevationColor!,
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                ),
+              ]
+            : null,
+      ),
+      child: ClipRRect(
+        borderRadius: borderRadius ?? BorderRadius.zero,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: blurAmount, sigmaY: blurAmount),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: backgroundGradient,
+              border: borderColor != null
+                  ? Border.all(color: borderColor!, width: 1.5)
+                  : null,
+              borderRadius: borderRadius,
+            ),
+            child: child,
+          ),
         ),
       ),
     );

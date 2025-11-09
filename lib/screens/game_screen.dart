@@ -20,7 +20,9 @@ import '../services/game_persistence.dart';
 enum _SecretCorner { topRight, bottomRight, bottomLeft, topLeft }
 
 class GameScreen extends StatefulWidget {
-  const GameScreen({super.key});
+  const GameScreen({super.key, this.forceShowProgressPath = false});
+
+  final bool forceShowProgressPath;
 
   @override
   State<GameScreen> createState() => _GameScreenState();
@@ -171,6 +173,7 @@ class _GameScreenState extends State<GameScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _showProgressPath = widget.forceShowProgressPath;
     // Initialize ValueNotifiers
     _scoreNotifier = ValueNotifier<int>(0);
     _hintUnlockedNotifier = ValueNotifier<bool>(false);

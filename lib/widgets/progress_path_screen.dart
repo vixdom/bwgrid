@@ -30,10 +30,23 @@ class _ProgressPathScreenState extends State<ProgressPathScreen>
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
   bool _showDetails = false;
+  late final List<GlobalKey> _cardKeys;
+
+  @override
+  void didUpdateWidget(covariant ProgressPathScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.currentStageIndex != widget.currentStageIndex) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToCurrentStage());
+    }
+  }
 
   @override
   void initState() {
     super.initState();
+    _cardKeys = List<GlobalKey>.generate(
+      widget.allStages.length,
+      (_) => GlobalKey(),
+    );
     _controller = AnimationController(
       duration: const Duration(milliseconds: 600),
       vsync: this,
@@ -48,8 +61,28 @@ class _ProgressPathScreenState extends State<ProgressPathScreen>
       if (mounted) {
         _controller.forward();
         setState(() => _showDetails = true);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scrollToCurrentStage();
+        });
       }
     });
+  }
+
+  void _scrollToCurrentStage() {
+    if (!mounted || _cardKeys.isEmpty) return;
+    final index = widget.currentStageIndex.clamp(0, _cardKeys.length - 1);
+    final context = _cardKeys[index].currentContext;
+    if (context == null) {
+      // Try again on next frame if layout not ready
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToCurrentStage());
+      return;
+    }
+    Scrollable.ensureVisible(
+      context,
+      duration: const Duration(milliseconds: 450),
+      curve: Curves.easeInOut,
+      alignment: 0.35,
+    );
   }
 
   void _dismissScreen({int? selectedStageIndex}) async {
@@ -191,6 +224,7 @@ class _ProgressPathScreenState extends State<ProgressPathScreen>
         );
       },
       child: GestureDetector(
+        key: _cardKeys[index],
         onTap: isClickable
             ? () {
                 // Show confirmation dialog for completed screens
@@ -201,8 +235,8 @@ class _ProgressPathScreenState extends State<ProgressPathScreen>
                   _dismissScreen();
                 }
               }
-            : null,
-        child: Container(
+      : null,
+    child: Container(
         margin: const EdgeInsets.only(bottom: 24),
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
