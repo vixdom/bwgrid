@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:glassmorphism/glassmorphism.dart';
-import 'package:shimmer/shimmer.dart';
-import 'package:animated_text_kit/animated_text_kit.dart';
 
 import 'game_screen.dart' as game;
 
@@ -23,7 +21,7 @@ class WelcomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     debugPrint('[Welcome] build()');
     final screenSize = MediaQuery.of(context).size;
-    final topSpacing = (screenSize.height * 0.6) - 125;
+    final topSpacing = (screenSize.height * 0.6) - 140;
     final adjustedTopSpacing = topSpacing > 0 ? topSpacing : 0.0;
 
     return Scaffold(
