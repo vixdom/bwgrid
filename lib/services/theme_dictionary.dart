@@ -28,12 +28,20 @@ class ThemeDictionary {
   /// Pick a random theme that has at least [minWords] words with length <= [maxLen].
   ThemeEntry? pickRandom(int minWords, {required int maxLen}) {
     final candidates = themes.where((t) {
-      final usable = t.names.map(_sanitize).where((w) => w.length <= maxLen && w.length >= 3).toSet();
+      final usable = t.names.map(_sanitize).where((w) => w.length <= maxLen && w.length >= 3 && w.length < maxLen).toSet();
       return usable.length >= minWords;
     }).toList();
     if (candidates.isEmpty) return null;
     candidates.shuffle();
     return candidates.first;
+  }
+
+  ThemeEntry findByName(String name) {
+    final target = name.trim().toLowerCase();
+    return themes.firstWhere(
+      (t) => t.name.trim().toLowerCase() == target,
+      orElse: () => themes.isNotEmpty ? themes.first : ThemeEntry(name: 'Default', names: const []),
+    );
   }
 }
 
@@ -64,17 +72,18 @@ String _labelize(String original) {
 extension ThemeEntryHelpers on ThemeEntry {
   /// Return up to [count] unique, sanitized words (A-Z only), max length [maxLen].
   List<String> pickWords(int count, {required int maxLen}) {
-    final pool = names.map(_sanitize).where((w) => w.length <= maxLen && w.length >= 3).toSet().toList();
+    final pool = names.map(_sanitize).where((w) => w.length < maxLen && w.length >= 3).toSet().toList();
     pool.shuffle();
     return pool.take(count).toList();
   }
 
   /// Return up to [count] unique clues with spaced labels for readability and sanitized answers for grid.
-  List<Clue> pickClues(int count, {required int maxLen}) {
+  List<Clue> pickClues(int count, {required int maxLen, Set<String> exclude = const <String>{}}) {
+    final exclusion = exclude.map((e) => e.toUpperCase()).toSet();
     final unique = <String, Clue>{};
     for (final n in names) {
       final ans = _sanitize(n);
-      if (ans.length >= 3 && ans.length <= maxLen) {
+      if (ans.length >= 3 && ans.length < maxLen && !exclusion.contains(ans)) {
         unique[ans] = Clue(answer: ans, label: _labelize(n));
       }
     }

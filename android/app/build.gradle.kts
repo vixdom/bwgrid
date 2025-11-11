@@ -1,42 +1,95 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+val keystorePropsFile = rootProject.file("key.properties")
+val keystoreProps = Properties().apply {
+    if (keystorePropsFile.exists()) {
+        load(keystorePropsFile.inputStream())
+    } else {
+        logger.warn("key.properties not found at ${keystorePropsFile.absolutePath}. Release signing will not be configured.")
+    }
+}
+
 android {
-    namespace = "com.example.bwgrid"
-    compileSdk = flutter.compileSdkVersion
+    namespace = "com.moviemasala.wordsearch"
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_11.toString()
+        jvmTarget = JavaVersion.VERSION_1_8.toString()
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.bwgrid"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
+        applicationId = "com.moviemasala.wordsearch"
         minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
+        targetSdk = 36
+        // Align with pubspec.yaml if properties are provided by Flutter tooling
+        val flutterVersionCode = project.findProperty("flutter.versionCode")?.toString()?.toIntOrNull()
+        val flutterVersionName = project.findProperty("flutter.versionName")?.toString()
+    versionCode = flutterVersionCode ?: 2
+        versionName = flutterVersionName ?: "2.1.0"
+        multiDexEnabled = true
     }
+
+    signingConfigs {
+        create("release") {
+            val store = keystoreProps["storeFile"] as String?
+            val storePass = keystoreProps["storePassword"] as String?
+            val alias = keystoreProps["keyAlias"] as String?
+            val keyPass = keystoreProps["keyPassword"] as String?
+
+            if (store.isNullOrBlank() || storePass.isNullOrBlank() || alias.isNullOrBlank() || keyPass.isNullOrBlank()) {
+                logger.warn("Release signing config not fully specified in key.properties; using unsigned release.")
+            } else {
+                storeFile = file(store)
+                storePassword = storePass
+                keyAlias = alias
+                keyPassword = keyPass
+            }
+        }
+    }
+
+    // Packaging: let Gradle strip release native libs and produce proper symbols
+    // We avoid keepDebugSymbols to prevent conflicts during AAB build.
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = false
+            isShrinkResources = false
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Generate native symbols for Play Console (smaller than FULL)
+            ndk {
+                debugSymbolLevel = "SYMBOL_TABLE"
+            }
+        }
+        debug {
+            isDebuggable = true
+            applicationIdSuffix = ".debug"
         }
     }
+}
+
+dependencies {
+    implementation("androidx.multidex:multidex:2.0.1")
+    implementation("androidx.core:core-ktx:1.12.0")
+    // Removed deprecated Play Core deps (core/core-ktx) that are incompatible with targetSdk 34
+    // If you need in-app updates or review, use:
+    // implementation("com.google.android.play:app-update:2.1.0")
+    // implementation("com.google.android.play:review:2.0.1")
+    // Play Core dependency removed for Play Store compliance. If you need in-app updates or reviews, use:
+    // implementation("com.google.android.play:app-update:2.1.0")
+    // implementation("com.google.android.play:review:2.0.1")
 }
 
 flutter {

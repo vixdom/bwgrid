@@ -26,3 +26,8 @@ linter:
 
 # Additional information about this file can be found at
 # https://dart.dev/guides/language/analysis-options
+analyzer:
+  exclude:
+    - lib/screens/welcome_screen_backup.dart
+    - lib/screens/game_screen.dart.bak
+    - lib/screens/game_screen.dart.bak2

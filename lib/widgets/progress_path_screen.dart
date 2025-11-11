@@ -1,10 +1,11 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../constants/app_themes.dart';
-import '../models/feedback_settings.dart';
 import '../models/stage_scene.dart';
-import 'glass_surface.dart';
+import '../models/feedback_settings.dart';
+import '../constants/app_themes.dart';
+import '../widgets/glass_surface.dart';
 
 /// Displays the player's progress through all screens/stages
 /// Shows completed, current, and upcoming screens with animated transitions
@@ -30,28 +31,17 @@ class ProgressPathScreen extends StatefulWidget {
 }
 
 class _ProgressPathScreenState extends State<ProgressPathScreen>
-  with TickerProviderStateMixin {
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
+  late Animation<double> _fadeAnimation;
   bool _showDetails = false;
   late final List<GlobalKey> _cardKeys;
-  late final AnimationController _pulseController;
-  late final AnimationController _marqueeController;
-  late final AnimationController _shimmerController;
-  late final Animation<double> _pulseAnimation;
-  late final Animation<double> _marqueeAnimation;
-  late final Animation<double> _shimmerAnimation;
-  bool _isUnlockShimmerVisible = false;
 
   @override
   void didUpdateWidget(covariant ProgressPathScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.currentStageIndex != widget.currentStageIndex) {
-      WidgetsBinding.instance.addPostFrameCallback(
-        (_) => _scrollToCurrentStage(),
-      );
-      if (widget.currentStageIndex > oldWidget.currentStageIndex) {
-        _startUnlockShimmer();
-      }
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToCurrentStage());
     }
   }
 
@@ -67,42 +57,9 @@ class _ProgressPathScreenState extends State<ProgressPathScreen>
       vsync: this,
     );
 
-    _pulseController = AnimationController(
-      duration: const Duration(milliseconds: 1800),
-      vsync: this,
-    )..repeat(reverse: true);
-
-    _pulseAnimation = Tween<double>(begin: 0.98, end: 1.02).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
-
-    _marqueeController = AnimationController(
-      duration: const Duration(seconds: 4),
-      vsync: this,
-    )..repeat();
-
-    _marqueeAnimation = Tween<double>(begin: -1.2, end: 1.2).animate(
-      CurvedAnimation(parent: _marqueeController, curve: Curves.linear),
-    );
-
-    _shimmerController = AnimationController(
-      duration: const Duration(milliseconds: 2200),
-      vsync: this,
-    );
-
-    _shimmerAnimation = CurvedAnimation(
-      parent: _shimmerController,
-      curve: Curves.easeInOut,
-    );
-
-    _shimmerController.addStatusListener((status) {
-      if (!mounted) return;
-      if (status == AnimationStatus.completed ||
-          status == AnimationStatus.dismissed) {
-        setState(() => _isUnlockShimmerVisible = false);
-        _shimmerController.reset();
-      }
-    });
 
     // Start animation after a short delay
     Future.delayed(const Duration(milliseconds: 100), () {
@@ -116,22 +73,13 @@ class _ProgressPathScreenState extends State<ProgressPathScreen>
     });
   }
 
-  void _startUnlockShimmer() {
-    if (!_shimmerController.isAnimating) {
-      setState(() => _isUnlockShimmerVisible = true);
-      _shimmerController.forward(from: 0);
-    }
-  }
-
   void _scrollToCurrentStage() {
     if (!mounted || _cardKeys.isEmpty) return;
     final index = widget.currentStageIndex.clamp(0, _cardKeys.length - 1);
     final context = _cardKeys[index].currentContext;
     if (context == null) {
       // Try again on next frame if layout not ready
-      WidgetsBinding.instance.addPostFrameCallback(
-        (_) => _scrollToCurrentStage(),
-      );
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToCurrentStage());
       return;
     }
     Scrollable.ensureVisible(
@@ -156,220 +104,101 @@ class _ProgressPathScreenState extends State<ProgressPathScreen>
   @override
   void dispose() {
     _controller.dispose();
-    _pulseController.dispose();
-    _marqueeController.dispose();
-    _shimmerController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<FeedbackSettings>();
-    final isDarkTheme = settings.theme == AppTheme.kashyap;
-    final backgroundImage = isDarkTheme
-        ? 'assets/Options_Dark.png'
-        : 'assets/Options_Light.png';
+    final isDark = settings.theme == AppTheme.kashyap;
 
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage(backgroundImage),
-            fit: BoxFit.cover,
-            opacity: isDarkTheme ? 0.2 : 0.18,
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              _buildHeader(isDarkTheme),
-
-              // Scrollable screens list
-              Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 16,
-                  ),
-                  itemCount:
-                      widget.allStages.length +
-                      1, // +1 for "coming soon" message
-                  itemBuilder: (context, index) {
-                    if (index < widget.allStages.length) {
-                      return _buildScreenCard(index);
-                    } else {
-                      // "More screens coming soon" message after last screen
-                      return _buildComingSoonCard();
-                    }
-                  },
-                ),
-              ),
-
-              // Play button at bottom
-              if (_showDetails)
-                Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: _dismissScreen,
-                      icon: const Icon(Icons.play_arrow, size: 28),
-                      label: Text(
-                        'Play Screen ${widget.currentStageIndex + 1}',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 32,
-                          vertical: 20,
-                        ),
-                        backgroundColor: Theme.of(context).colorScheme.primary,
-                        foregroundColor: Theme.of(
-                          context,
-                        ).colorScheme.onPrimary,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
+      extendBodyBehindAppBar: true,
+      appBar: _GlassProgressAppBar(
+        title: 'BollyWord Multiplex',
+        onClose: _dismissScreen,
       ),
-    );
-  }
-
-  Widget _buildHeader(bool isDarkTheme) {
-    final theme = Theme.of(context);
-    final onSurface = theme.colorScheme.onSurface;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-      child: GlassSurface(
-        borderRadius: BorderRadius.circular(24),
-        backgroundGradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.white.withOpacity(isDarkTheme ? 0.35 : 0.48),
-            Colors.white.withOpacity(isDarkTheme ? 0.12 : 0.18),
-          ],
-        ),
-        borderColor: Colors.white.withOpacity(isDarkTheme ? 0.38 : 0.44),
-        elevationColor: Colors.black.withOpacity(isDarkTheme ? 0.36 : 0.22),
-        blurAmount: 26,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(isDarkTheme ? 0.2 : 0.28),
-                  border: Border.all(
-                    color: Colors.white.withOpacity(isDarkTheme ? 0.38 : 0.46),
-                    width: 1.2,
-                  ),
-                ),
-                child: Icon(
-                  Icons.movie_creation_outlined,
-                  size: 26,
-                  color: onSurface.withOpacity(isDarkTheme ? 0.8 : 0.72),
-                ),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Image.asset(
+                isDark ? 'assets/Options_Dark.png' : 'assets/Options_Light.png',
+                fit: BoxFit.cover,
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(
-                      height: 30,
-                      child: Stack(
-                        alignment: Alignment.centerLeft,
-                        children: [
-                          Text(
-                            'BollyWord Multiplex',
-                            maxLines: 1,
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w900,
-                              color: onSurface.withOpacity(
-                                isDarkTheme ? 0.92 : 0.86,
-                              ),
-                              letterSpacing: 1.1,
-                            ),
-                          ),
-                          IgnorePointer(
-                            ignoring: true,
-                            child: AnimatedBuilder(
-                              animation: _marqueeAnimation,
-                              builder: (context, child) {
-                                final alignmentX = _marqueeAnimation.value;
-                                return Align(
-                                  alignment: Alignment(alignmentX, 0),
-                                  child: FractionallySizedBox(
-                                    widthFactor: 0.35,
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                          begin: Alignment.topCenter,
-                                          end: Alignment.bottomCenter,
-                                          colors: [
-                                            Colors.white.withOpacity(0.0),
-                                            Colors.white.withOpacity(
-                                              isDarkTheme ? 0.25 : 0.35,
-                                            ),
-                                            Colors.white.withOpacity(0.0),
-                                          ],
-                                          stops: const [0.0, 0.5, 1.0],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Pick a screen and lights, camera, action!',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: onSurface.withOpacity(isDarkTheme ? 0.7 : 0.62),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
+          SafeArea(
+            child: FadeTransition(
+              opacity: _fadeAnimation,
+              child: Column(
+                children: [
+                  
+                  // Scrollable screens list
+                  Expanded(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                      itemCount: widget.allStages.length + 1, // +1 for "coming soon" message
+                      itemBuilder: (context, index) {
+                        if (index < widget.allStages.length) {
+                          return _buildScreenCard(index);
+                        } else {
+                          // "More screens coming soon" message after last screen
+                          return _buildComingSoonCard();
+                        }
+                      },
+                    ),
+                  ),
+                  
+                  // Play button at bottom
+                  if (_showDetails)
+                    Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: _dismissScreen,
+                          icon: const Icon(Icons.play_arrow, size: 28),
+                          label: Text(
+                            'Play Screen ${widget.currentStageIndex + 1}',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 32,
+                              vertical: 20,
+                            ),
+                            backgroundColor: Theme.of(context).colorScheme.primary,
+                            foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildScreenCard(int index) {
+    final settings = context.watch<FeedbackSettings>();
+    final isDark = settings.theme == AppTheme.kashyap;
     final stage = widget.allStages[index];
     final isPast = index < widget.currentStageIndex;
     final isCurrent = index == widget.currentStageIndex;
     final isFuture = index > widget.currentStageIndex;
-    final isClickable =
-        isPast || isCurrent; // Can click completed or current screen
-    final theme = Theme.of(context);
-    final isDarkTheme = theme.brightness == Brightness.dark;
-
+    final isClickable = isPast || isCurrent; // Can click completed or current screen
+    
     // Calculate completed scenes for this stage
     int completedScenes = 0;
     if (isPast) {
@@ -378,329 +207,180 @@ class _ProgressPathScreenState extends State<ProgressPathScreen>
       completedScenes = widget.currentSceneIndex;
     }
 
-    final gradientColors = isCurrent
-        ? <Color>[
-            Colors.white.withOpacity(isDarkTheme ? 0.58 : 0.7),
-            theme.colorScheme.primary.withOpacity(isDarkTheme ? 0.26 : 0.2),
-            Colors.white.withOpacity(isDarkTheme ? 0.22 : 0.34),
-          ]
-        : isPast
-        ? <Color>[
-            Colors.white.withOpacity(isDarkTheme ? 0.42 : 0.56),
-            Colors.white.withOpacity(isDarkTheme ? 0.18 : 0.26),
-            Colors.white.withOpacity(isDarkTheme ? 0.08 : 0.16),
-          ]
-        : <Color>[
-            Colors.white.withOpacity(isDarkTheme ? 0.28 : 0.4),
-            Colors.white.withOpacity(isDarkTheme ? 0.12 : 0.18),
-            Colors.white.withOpacity(isDarkTheme ? 0.05 : 0.1),
-          ];
-
-    final borderOpacity = isCurrent
-        ? (isDarkTheme ? 0.48 : 0.54)
-        : isPast
-        ? (isDarkTheme ? 0.32 : 0.4)
-        : (isDarkTheme ? 0.2 : 0.26);
-
-    final shadowOpacity = isCurrent
-        ? (isDarkTheme ? 0.55 : 0.3)
-        : isPast
-        ? (isDarkTheme ? 0.4 : 0.24)
-        : (isDarkTheme ? 0.3 : 0.18);
-
-    final titleColor = isDarkTheme
-        ? Colors.white.withOpacity(isCurrent ? 0.95 : 0.88)
-        : Colors.black.withOpacity(isCurrent ? 0.92 : 0.85);
-
-    final subtitleColor = isDarkTheme
-        ? Colors.white.withOpacity(isCurrent ? 0.8 : 0.72)
-        : Colors.black.withOpacity(isCurrent ? 0.7 : 0.62);
-
-    final inactiveDotColor = isDarkTheme
-        ? Colors.white.withOpacity(0.22)
-        : Colors.black.withOpacity(0.12);
-
-    final totalScenes = stage.scenes.length;
-    int sceneNumber;
-    if (isPast) {
-      sceneNumber = totalScenes;
-    } else if (isCurrent) {
-      sceneNumber = widget.currentSceneIndex + 1;
-    } else {
-      sceneNumber = 1;
-    }
-
-    if (sceneNumber < 1) {
-      sceneNumber = 1;
-    } else if (sceneNumber > totalScenes) {
-      sceneNumber = totalScenes;
-    }
-
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0.0, end: 1.0),
       duration: Duration(milliseconds: 400 + (index * 100)),
       curve: Curves.easeOutCubic,
       builder: (context, value, child) {
-        return Transform.translate(
-          offset: Offset(0, 20 * (1 - value)),
-          child: child,
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, 20 * (1 - value)),
+            child: child,
+          ),
         );
       },
       child: GestureDetector(
         key: _cardKeys[index],
         onTap: isClickable
             ? () {
+                // Show confirmation dialog for completed screens
                 if (isPast) {
                   _showReplayConfirmation(index);
                 } else {
+                  // Current screen - just dismiss and continue
                   _dismissScreen();
                 }
               }
             : null,
-        child: Padding(
-          padding: const EdgeInsets.only(bottom: 24),
-          child: _buildAnimatedCard(
-            index: index,
-            gradientColors: gradientColors,
-            borderOpacity: borderOpacity,
-            shadowOpacity: shadowOpacity,
-            isCurrent: isCurrent,
-            isPast: isPast,
-            isFuture: isFuture,
-            titleColor: titleColor,
-            subtitleColor: subtitleColor,
-            inactiveDotColor: inactiveDotColor,
-            stage: stage,
-            completedScenes: completedScenes,
-            isDarkTheme: isDarkTheme,
-            sceneNumber: sceneNumber,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 32),
+          child: GlassSurface(
+            borderRadius: BorderRadius.circular(20),
+            backgroundGradient: LinearGradient(
+              colors: isDark
+                  ? [Colors.white.withAlpha(26), Colors.white.withAlpha(13)]
+                  : [Colors.white.withAlpha(97), Colors.white.withAlpha(46)],
+            ),
+            borderColor: Colors.white.withAlpha(isDark ? 51 : 71),
+            elevationColor: Colors.black.withAlpha(isDark ? 90 : 46),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                  // Screen image with number overlay
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          image: const DecorationImage(
+                            image: AssetImage('assets/images/screen_cropped.png'),
+                            fit: BoxFit.cover,
+                            opacity: 0.8,
+                          ),
+                        ),
+                      ),
+                      // Screen number or checkmark
+                      if (isPast)
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.green.withAlpha(230),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.check,
+                            color: Colors.white,
+                            size: 28,
+                          ),
+                        )
+                      else
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: isCurrent
+                                ? Theme.of(context).colorScheme.primary.withAlpha(230)
+                                : Colors.grey.withAlpha(179),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Text(
+                              '${index + 1}',
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  
+                  const SizedBox(width: 16),
+                  
+                  // Screen info
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Screen ${index + 1}',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: isCurrent ? FontWeight.bold : FontWeight.w700,
+                            color: isFuture
+                                ? Colors.grey
+                                : isCurrent
+                                    ? (isDark ? Colors.white : Colors.black)
+                                    : Theme.of(context).colorScheme.onSurface,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Now showing: ${stage.themeName} Scene ${isPast ? 3 : isCurrent ? widget.currentSceneIndex + 1 : 1}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: isCurrent
+                                ? Theme.of(context).colorScheme.onSurface.withAlpha(204)
+                                : Theme.of(context).colorScheme.onSurface.withAlpha(179),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        // Three dots for scene progress
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: List.generate(3, (sceneIndex) {
+                            final isSceneCompleted = sceneIndex < completedScenes;
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: Container(
+                                width: 10,
+                                height: 10,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: isSceneCompleted
+                                      ? (isCurrent
+                                          ? Theme.of(context).colorScheme.primary
+                                          : Colors.green)
+                                      : Theme.of(context).colorScheme.outline.withAlpha(77),
+                                ),
+                              ),
+                            );
+                          }),
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  // Lock icon for future screens or replay icon for completed
+                  if (isFuture)
+                    const Icon(
+                      Icons.lock_outline,
+                      color: Colors.grey,
+                      size: 28,
+                    )
+                  else if (isPast)
+                    Icon(
+                      Icons.replay,
+                      color: Theme.of(context).colorScheme.primary.withAlpha(179),
+                      size: 28,
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
     );
-  }
-
-  Widget _buildAnimatedCard({
-    required int index,
-    required List<Color> gradientColors,
-    required double borderOpacity,
-    required double shadowOpacity,
-    required bool isCurrent,
-    required bool isPast,
-    required bool isFuture,
-    required Color titleColor,
-    required Color subtitleColor,
-    required Color inactiveDotColor,
-    required StageDefinition stage,
-    required int completedScenes,
-    required bool isDarkTheme,
-    required int sceneNumber,
-  }) {
-    final theme = Theme.of(context);
-    final shimmerActive =
-        isPast &&
-        (index == widget.currentStageIndex - 1) &&
-        _isUnlockShimmerVisible;
-
-    Widget card = GlassSurface(
-      borderRadius: BorderRadius.circular(24),
-      backgroundGradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: gradientColors,
-      ),
-      borderColor: Colors.white.withOpacity(borderOpacity),
-      elevationColor: Colors.black.withOpacity(shadowOpacity),
-      blurAmount: 20,
-      child: Stack(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                // Screen image with number overlay
-                Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Container(
-                      width: 80,
-                      height: 80,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        image: const DecorationImage(
-                          image: AssetImage('assets/images/screen_cropped.png'),
-                          fit: BoxFit.cover,
-                          opacity: 0.8,
-                        ),
-                      ),
-                    ),
-                    if (isPast)
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: const Color(
-                            0xFF27C26A,
-                          ).withOpacity(isDarkTheme ? 0.9 : 0.85),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.check,
-                          color: Colors.white,
-                          size: 28,
-                        ),
-                      )
-                    else
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: isCurrent
-                              ? theme.colorScheme.primary.withOpacity(0.9)
-                              : theme.colorScheme.onSurface.withOpacity(
-                                  isDarkTheme ? 0.4 : 0.18,
-                                ),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Center(
-                          child: Text(
-                            '${index + 1}',
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-
-                const SizedBox(width: 16),
-
-                // Screen info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Screen ${index + 1} Now showing',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: titleColor,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${stage.themeName} Scene $sceneNumber',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: subtitleColor,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      // Three dots for scene progress
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: List.generate(3, (sceneIndex) {
-                          final isSceneCompleted = sceneIndex < completedScenes;
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: Container(
-                              width: 10,
-                              height: 10,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: isSceneCompleted
-                                    ? (isCurrent
-                                          ? theme.colorScheme.primary
-                                          : const Color(0xFF27C26A).withOpacity(
-                                              isDarkTheme ? 0.9 : 0.75,
-                                            ))
-                                    : inactiveDotColor,
-                              ),
-                            ),
-                          );
-                        }),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Lock icon for future screens or replay icon for completed
-                if (isFuture)
-                  Icon(
-                    Icons.lock_outline,
-                    color: theme.colorScheme.onSurface.withOpacity(0.3),
-                    size: 28,
-                  )
-                else if (isPast)
-                  Icon(
-                    Icons.replay,
-                    color: theme.colorScheme.primary.withOpacity(0.7),
-                    size: 28,
-                  ),
-              ],
-            ),
-          ),
-          if (shimmerActive)
-            Positioned.fill(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(24),
-                child: IgnorePointer(
-                  ignoring: true,
-                  child: AnimatedBuilder(
-                    animation: _shimmerAnimation,
-                    builder: (context, child) {
-                      if (!_isUnlockShimmerVisible) {
-                        return const SizedBox.shrink();
-                      }
-                      final alignmentX = (_shimmerAnimation.value * 2) - 1;
-                      return Align(
-                        alignment: Alignment(alignmentX, 0),
-                        child: FractionallySizedBox(
-                          widthFactor: 0.4,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  Colors.white.withOpacity(0.0),
-                                  Colors.white.withOpacity(
-                                    isDarkTheme ? 0.18 : 0.28,
-                                  ),
-                                  Colors.white.withOpacity(0.0),
-                                ],
-                                stops: const [0.0, 0.5, 1.0],
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-
-    if (isCurrent) {
-      card = AnimatedBuilder(
-        animation: _pulseAnimation,
-        builder: (context, child) {
-          return Transform.scale(scale: _pulseAnimation.value, child: child);
-        },
-        child: card,
-      );
-    }
-
-    return card;
   }
 
   Future<void> _showReplayConfirmation(int stageIndex) async {
@@ -731,8 +411,6 @@ class _ProgressPathScreenState extends State<ProgressPathScreen>
   }
 
   Widget _buildComingSoonCard() {
-    final theme = Theme.of(context);
-    final isDarkTheme = theme.brightness == Brightness.dark;
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0.0, end: 1.0),
       duration: Duration(milliseconds: 400 + (widget.allStages.length * 100)),
@@ -746,58 +424,178 @@ class _ProgressPathScreenState extends State<ProgressPathScreen>
           ),
         );
       },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 24),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface.withAlpha(128),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outline.withAlpha(77),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(13),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.movie_outlined,
+              size: 48,
+              color: Theme.of(context).colorScheme.onSurface.withAlpha(102),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'More screens coming soon',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Theme.of(context).colorScheme.onSurface.withAlpha(153),
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'New challenges and themes on the way!',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: Theme.of(context).colorScheme.onSurface.withAlpha(128),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GlassProgressAppBar extends StatelessWidget implements PreferredSizeWidget {
+  const _GlassProgressAppBar({required this.title, required this.onClose});
+
+  final String title;
+  final VoidCallback onClose;
+
+  static const double preferredHeight = 72;
+
+  @override
+  Size get preferredSize => const Size.fromHeight(preferredHeight);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final iconColor = theme.colorScheme.onSurface.withAlpha(217);
+
+    return SafeArea(
+      bottom: false,
       child: Padding(
-        padding: const EdgeInsets.only(bottom: 24),
-        child: GlassSurface(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+        child: _GlassSurface(
           borderRadius: BorderRadius.circular(24),
           backgroundGradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Colors.white.withOpacity(isDarkTheme ? 0.38 : 0.55),
-              Colors.white.withOpacity(isDarkTheme ? 0.14 : 0.22),
-            ],
+            colors: isDark
+                ? [
+                    Colors.white.withAlpha(31),
+                    Colors.white.withAlpha(13),
+                  ]
+                : [
+                    Colors.white.withAlpha(115),
+                    Colors.white.withAlpha(51),
+                  ],
           ),
-          borderColor: Colors.white.withOpacity(isDarkTheme ? 0.26 : 0.32),
-          elevationColor: Colors.black.withOpacity(isDarkTheme ? 0.32 : 0.18),
-          blurAmount: 18,
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.movie_outlined,
-                  size: 48,
-                  color: theme.colorScheme.onSurface.withOpacity(0.4),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'More screens coming soon',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: theme.colorScheme.onSurface.withOpacity(0.6),
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'New challenges and themes on the way!',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: theme.colorScheme.onSurface.withOpacity(0.5),
-                        ),
-                      ),
-                    ],
+          borderColor: Colors.white.withAlpha(isDark ? 56 : 90),
+          elevationColor: Colors.black.withAlpha(isDark ? 82 : 41),
+          child: Material(
+            type: MaterialType.transparency,
+            child: SizedBox(
+              height: preferredHeight,
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    color: iconColor,
+                    onPressed: onClose,
                   ),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: iconColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GlassSurface extends StatelessWidget {
+  const _GlassSurface({
+    required this.child,
+    this.borderRadius,
+    this.backgroundGradient,
+    this.borderColor,
+    this.elevationColor,
+    this.blurAmount = 16,
+  });
+
+  final Widget child;
+  final BorderRadius? borderRadius;
+  final Gradient? backgroundGradient;
+  final Color? borderColor;
+  final Color? elevationColor;
+  final double blurAmount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: borderRadius,
+        boxShadow: elevationColor != null
+            ? [
+                BoxShadow(
+                  color: elevationColor!,
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                ),
+              ]
+            : null,
+      ),
+      child: ClipRRect(
+        borderRadius: borderRadius ?? BorderRadius.zero,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: blurAmount, sigmaY: blurAmount),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: backgroundGradient,
+              border: borderColor != null
+                  ? Border.all(color: borderColor!, width: 1.5)
+                  : null,
+              borderRadius: borderRadius,
+            ),
+            child: child,
           ),
         ),
       ),

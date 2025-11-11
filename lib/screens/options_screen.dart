@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -8,7 +9,6 @@ import '../models/feedback_settings.dart';
 import '../services/feedback_controller.dart';
 import '../services/game_persistence.dart';
 import '../services/achievements_service.dart';
-import '../widgets/glass_surface.dart';
 import 'privacy_policy_screen.dart';
 
 class OptionsScreen extends StatefulWidget {
@@ -409,7 +409,7 @@ class _GlassOptionsAppBar extends StatelessWidget implements PreferredSizeWidget
       bottom: false,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-  child: GlassSurface(
+        child: _GlassSurface(
           borderRadius: BorderRadius.circular(24),
           backgroundGradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -467,7 +467,7 @@ class BwSectionCard extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-  return GlassSurface(
+    return _GlassSurface(
       borderRadius: BorderRadius.circular(26),
       backgroundGradient: LinearGradient(
         begin: Alignment.topLeft,
@@ -493,6 +493,58 @@ class BwSectionCard extends StatelessWidget {
             const SizedBox(height: 12),
             child,
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GlassSurface extends StatelessWidget {
+  const _GlassSurface({
+    required this.child,
+    this.borderRadius,
+    this.backgroundGradient,
+    this.borderColor,
+    this.elevationColor,
+    this.blurAmount = 16,
+  });
+
+  final Widget child;
+  final BorderRadius? borderRadius;
+  final Gradient? backgroundGradient;
+  final Color? borderColor;
+  final Color? elevationColor;
+  final double blurAmount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: borderRadius,
+        boxShadow: elevationColor != null
+            ? [
+                BoxShadow(
+                  color: elevationColor!,
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                ),
+              ]
+            : null,
+      ),
+      child: ClipRRect(
+        borderRadius: borderRadius ?? BorderRadius.zero,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: blurAmount, sigmaY: blurAmount),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: backgroundGradient,
+              border: borderColor != null
+                  ? Border.all(color: borderColor!, width: 1.5)
+                  : null,
+              borderRadius: borderRadius,
+            ),
+            child: child,
+          ),
         ),
       ),
     );

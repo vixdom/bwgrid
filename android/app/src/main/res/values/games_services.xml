@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Google Play Games Services App ID.
+         Replace PLAY_GAMES_APP_ID with the numeric ID from the Play Console (e.g., 123456789012).
+         Do NOT include the "gpgs" prefix. -->
+    <string name="play_games_app_id">PLAY_GAMES_APP_ID</string>
+</resources>

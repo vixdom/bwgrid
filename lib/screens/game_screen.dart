@@ -29,13 +29,13 @@ class GameScreen extends StatefulWidget {
 }
 
 class _GameScreenState extends State<GameScreen>
-    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+  with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   // Optimized state management with ValueNotifiers to reduce rebuilds
   late final ValueNotifier<int> _scoreNotifier;
   late final ValueNotifier<bool> _hintUnlockedNotifier;
   late final ValueNotifier<bool> _showConfettiNotifier;
   late final ValueNotifier<SelectionController?> _selectionNotifier;
-
+  
   // Helper to verify word is present in grid in allowed directions
   bool _isWordInGrid(List<List<String>> grid, String word) {
     final n = grid.length;
@@ -112,7 +112,6 @@ class _GameScreenState extends State<GameScreen>
     }
     return false;
   }
-
   static const int gridSize = 12;
   static const List<_SecretCorner> _autoCompleteSequence = <_SecretCorner>[
     _SecretCorner.topRight,
@@ -134,28 +133,14 @@ class _GameScreenState extends State<GameScreen>
   BannerAd? _bannerAd;
   bool _isBannerAdLoaded = false;
   static const List<SceneDefinition> _fallbackScenes = [
-    SceneDefinition(
-      index: 1,
-      title: 'Spotlight Search',
-      mode: SceneMode.classic,
-    ),
-    SceneDefinition(
-      index: 2,
-      title: 'Hidden Names',
-      mode: SceneMode.hiddenClues,
-    ),
-    SceneDefinition(
-      index: 3,
-      title: 'Lightning Round',
-      mode: SceneMode.timed,
-      timeLimit: Duration(seconds: 90),
-    ),
+    SceneDefinition(index: 1, title: 'Spotlight Search', mode: SceneMode.classic),
+    SceneDefinition(index: 2, title: 'Hidden Names', mode: SceneMode.hiddenClues),
+    SceneDefinition(index: 3, title: 'Lightning Round', mode: SceneMode.timed, timeLimit: Duration(seconds: 90)),
   ];
   late final List<StageDefinition> _allStages = StagePlaybook.getAllStages();
   int _currentStageIndex = 0;
   StageDefinition get _stageDefinition => _allStages[_currentStageIndex];
-  List<SceneDefinition> get _sceneSchedule =>
-      _stageDefinition.scenes.length >= 2
+  List<SceneDefinition> get _sceneSchedule => _stageDefinition.scenes.length >= 2
       ? _stageDefinition.scenes
       : _fallbackScenes;
   int _currentSceneIndex = 0;
@@ -183,27 +168,25 @@ class _GameScreenState extends State<GameScreen>
   bool _showProgressPath = false;
   bool _hasShownHintReminder = false;
   bool _dangerHapticTriggered = false;
-  late final GameController _gameController;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _gameController = context.read<GameController>();
     _showProgressPath = widget.forceShowProgressPath;
     // Initialize ValueNotifiers
     _scoreNotifier = ValueNotifier<int>(0);
     _hintUnlockedNotifier = ValueNotifier<bool>(false);
     _showConfettiNotifier = ValueNotifier<bool>(false);
     _selectionNotifier = ValueNotifier<SelectionController?>(null);
-
+    
     // Initialize optimized animation controller
     _confettiController = AnimationManager().getController(
       duration: const Duration(milliseconds: 2000),
       vsync: this,
       id: 'confetti',
     );
-
+    
     _confettiAnimation = AnimationManager().createAnimation(
       controller: _confettiController,
       begin: 0.0,
@@ -211,12 +194,10 @@ class _GameScreenState extends State<GameScreen>
       curveName: 'easeOut',
       id: 'confetti_progress',
     );
-
+    
     unawaited(_restoreOrInitializeStage());
     // Load banner ad on both Android and iOS
-    final adUnitId = Platform.isAndroid
-        ? AdsConfig.androidBanner
-        : AdsConfig.iosBanner;
+    final adUnitId = Platform.isAndroid ? AdsConfig.androidBanner : AdsConfig.iosBanner;
     _bannerAd = BannerAd(
       adUnitId: adUnitId,
       size: AdSize.banner,
@@ -233,11 +214,11 @@ class _GameScreenState extends State<GameScreen>
     );
     _bannerAd!.load();
 
-    // Warm up an interstitial at startup so it's likely ready at the first break
-    final interstitialUnit = Platform.isAndroid
-        ? AdsConfig.androidInterstitial
-        : AdsConfig.iosInterstitial;
-    InterstitialAdManager.instance.load(adUnitId: interstitialUnit);
+  // Warm up an interstitial at startup so it's likely ready at the first break
+  final interstitialUnit = Platform.isAndroid
+    ? AdsConfig.androidInterstitial
+    : AdsConfig.iosInterstitial;
+  InterstitialAdManager.instance.load(adUnitId: interstitialUnit);
   }
 
   // Grid-local gesture mapping using inner constraints
@@ -260,12 +241,11 @@ class _GameScreenState extends State<GameScreen>
   }
 
   void _onGridPanUpdate(DragUpdateDetails details, BoxConstraints inner) {
-    if (_sel == null || !_sel!.hasActive || !_sceneActive || _timeExpired)
-      return;
+    if (_sel == null || !_sel!.hasActive || !_sceneActive || _timeExpired) return;
     final cell = inner.maxWidth / gridSize;
     final col = (details.localPosition.dx / cell).floor();
     final row = (details.localPosition.dy / cell).floor();
-
+    
     if (row >= 0 && row < gridSize && col >= 0 && col < gridSize) {
       final currentCell = Offset(row.toDouble(), col.toDouble());
       if (_sel!.activePath.isEmpty || _sel!.activePath.last != currentCell) {
@@ -287,7 +267,7 @@ class _GameScreenState extends State<GameScreen>
     final gc = context.read<GameController>();
     // Update selection notifier instead of setState
     _selectionNotifier.value = _sel;
-
+    
     if (found != null) {
       // Update score using ValueNotifier
       _changeScore(10);
@@ -337,10 +317,8 @@ class _GameScreenState extends State<GameScreen>
   bool get _hasMoreScenes => (_currentSceneIndex + 1) < _sceneSchedule.length;
 
   bool get _isFinalScene {
-    final finalScene = !_hasMoreScenes;
-    debugPrint(
-      '🎬 Scene check: _currentSceneIndex=$_currentSceneIndex, totalScenes=${_sceneSchedule.length}, finalScene=$finalScene',
-    );
+  final finalScene = !_hasMoreScenes;
+  debugPrint('🎬 Scene check: _currentSceneIndex=$_currentSceneIndex, totalScenes=${_sceneSchedule.length}, finalScene=$finalScene');
     return finalScene;
   }
 
@@ -350,21 +328,14 @@ class _GameScreenState extends State<GameScreen>
     final themeName = rawTheme.isEmpty ? 'Bolly Word Grid' : rawTheme;
     final sceneNumber = _currentScene.index;
     final result = 'Screen $screenIndex: $themeName Scene $sceneNumber';
-    debugPrint(
-      '🎬 _sceneHeaderLabel: _currentSceneIndex=$_currentSceneIndex, sceneNumber=$sceneNumber, result=$result',
-    );
+    debugPrint('🎬 _sceneHeaderLabel: _currentSceneIndex=$_currentSceneIndex, sceneNumber=$sceneNumber, result=$result');
     return result;
   }
 
   void _changeScore(int delta, {bool allowHintReminder = true}) {
     final prev = _scoreNotifier.value;
     final next = max(0, prev + delta);
-    final crossedThreshold =
-        delta > 0 &&
-        allowHintReminder &&
-        !_hasShownHintReminder &&
-        prev < 20 &&
-        next >= 20;
+    final crossedThreshold = delta > 0 && allowHintReminder && !_hasShownHintReminder && prev < 20 && next >= 20;
     _scoreNotifier.value = next;
 
     if (crossedThreshold) {
@@ -372,9 +343,7 @@ class _GameScreenState extends State<GameScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              'Hints unlock at 20 tickets. Tap the ? icon any time you need help.',
-            ),
+            content: Text('Hints unlock at 20 tickets. Tap the ? icon any time you need help.'),
             duration: Duration(seconds: 3),
             behavior: SnackBarBehavior.floating,
           ),
@@ -406,7 +375,7 @@ class _GameScreenState extends State<GameScreen>
     }
     // Set stage index (1-indexed in save, 0-indexed in array)
     _currentStageIndex = state.stageIndex - 1;
-
+    
     if (state.sceneIndex < 0 || state.sceneIndex >= _sceneSchedule.length) {
       return false;
     }
@@ -417,20 +386,15 @@ class _GameScreenState extends State<GameScreen>
     final expectedTheme = _stageDefinition.themeName.trim().toLowerCase();
     final savedTheme = state.themeName.trim().toLowerCase();
     if (savedTheme != expectedTheme) {
-      debugPrint(
-        '🎬 _restoreSavedGame: Theme mismatch (saved=$savedTheme, expected=$expectedTheme) → rejecting save',
-      );
+      debugPrint('🎬 _restoreSavedGame: Theme mismatch (saved=$savedTheme, expected=$expectedTheme) → rejecting save');
       return false;
     }
 
-    final dict =
-        _themeDictionary ??
+    final dict = _themeDictionary ??
         await ThemeDictionary.loadFromAsset('assets/key and themes.txt');
     final theme = dict.findByName(state.themeName);
     if (theme.name.trim().toLowerCase() != expectedTheme) {
-      debugPrint(
-        '🎬 _restoreSavedGame: Theme lookup mismatch (found=${theme.name}, expected=$expectedTheme) → rejecting save',
-      );
+      debugPrint('🎬 _restoreSavedGame: Theme lookup mismatch (found=${theme.name}, expected=$expectedTheme) → rejecting save');
       return false;
     }
 
@@ -451,7 +415,7 @@ class _GameScreenState extends State<GameScreen>
     );
     controller.restoreFoundWords(state.foundWords);
 
-    await _cancelSceneTimer(resumeBackground: false);
+  await _cancelSceneTimer(resumeBackground: false);
     _restoringFromSave = true;
 
     setState(() {
@@ -471,13 +435,11 @@ class _GameScreenState extends State<GameScreen>
       _selectionNotifier.value = controller;
       _scoreNotifier.value = state.score;
       _hintUnlockedNotifier.value = state.hintUnlocked;
-      _sceneDurationSeconds =
-          state.sceneDurationSeconds ??
+      _sceneDurationSeconds = state.sceneDurationSeconds ??
           _sceneSchedule[state.sceneIndex].timeLimit?.inSeconds;
       _remainingSeconds = state.remainingSeconds ?? _sceneDurationSeconds;
       _timeExpired = state.timeExpired;
-      _sceneActive =
-          state.sceneActive && !_timeExpired && !(controller.isComplete);
+      _sceneActive = state.sceneActive && !_timeExpired && !(controller.isComplete);
       _metronomeBeat = 0;
       _showProgressPath = true;
       _hasShownHintReminder = state.score >= 20;
@@ -523,10 +485,8 @@ class _GameScreenState extends State<GameScreen>
 
   void _scheduleAutoCompleteTimeout() {
     _autoCompleteResetTimer?.cancel();
-    _autoCompleteResetTimer = Timer(
-      _autoCompleteResetDelay,
-      _resetAutoCompleteSequence,
-    );
+    _autoCompleteResetTimer =
+        Timer(_autoCompleteResetDelay, _resetAutoCompleteSequence);
   }
 
   bool _cellMatchesCorner(int row, int col, _SecretCorner corner) {
@@ -566,11 +526,8 @@ class _GameScreenState extends State<GameScreen>
         }
       }
     } else {
-      final matchesStart = _cellMatchesCorner(
-        row,
-        col,
-        _autoCompleteSequence.first,
-      );
+      final matchesStart =
+          _cellMatchesCorner(row, col, _autoCompleteSequence.first);
       _resetAutoCompleteSequence();
       if (matchesStart) {
         _autoCompleteTapCount = 1;
@@ -673,15 +630,11 @@ class _GameScreenState extends State<GameScreen>
   }
 
   Future<void> _initializeStage() async {
-    debugPrint(
-      '🎬 _initializeStage: stage="${_stageDefinition.name}", totalScenes=${_sceneSchedule.length}',
-    );
+    debugPrint('🎬 _initializeStage: stage="${_stageDefinition.name}", totalScenes=${_sceneSchedule.length}');
     for (var i = 0; i < _sceneSchedule.length; i++) {
-      debugPrint(
-        '🎬   Scene $i: ${_sceneSchedule[i].title} (${_sceneSchedule[i].mode})',
-      );
+      debugPrint('🎬   Scene $i: ${_sceneSchedule[i].title} (${_sceneSchedule[i].mode})');
     }
-    await _cancelSceneTimer(resumeBackground: true);
+  await _cancelSceneTimer(resumeBackground: true);
     final dict = await ThemeDictionary.loadFromAsset(
       'assets/key and themes.txt',
     );
@@ -706,12 +659,10 @@ class _GameScreenState extends State<GameScreen>
   }
 
   Future<void> _loadPuzzle() async {
-    debugPrint(
-      '🎬 _loadPuzzle called for scene ${_currentSceneIndex + 1} (${_currentScene.title})',
+    debugPrint('🎬 _loadPuzzle called for scene ${_currentSceneIndex + 1} (${_currentScene.title})');
+    final dict = _themeDictionary ?? await ThemeDictionary.loadFromAsset(
+      'assets/key and themes.txt',
     );
-    final dict =
-        _themeDictionary ??
-        await ThemeDictionary.loadFromAsset('assets/key and themes.txt');
     _themeDictionary = dict;
     final theme = _stageTheme ?? dict.findByName(_stageDefinition.themeName);
     _stageTheme = theme;
@@ -720,15 +671,11 @@ class _GameScreenState extends State<GameScreen>
     var clues = theme.pickClues(10, maxLen: gridSize, exclude: exclude.toSet());
 
     if (clues.length < 10) {
-      debugPrint(
-        '⚠️ Only found ${clues.length} unused clues. Used so far: ${_usedAnswers.length} clues',
-      );
+      debugPrint('⚠️ Only found ${clues.length} unused clues. Used so far: ${_usedAnswers.length} clues');
       debugPrint('⚠️ Used clues: ${_usedAnswers.join(", ")}');
 
       final totalClues = theme.pickClues(100, maxLen: gridSize);
-      debugPrint(
-        '⚠️ Theme has ${totalClues.length} total clues available (max length $gridSize)',
-      );
+      debugPrint('⚠️ Theme has ${totalClues.length} total clues available (max length $gridSize)');
 
       // Gradually relax the "recently used" exclusion so we always get something for Scene 3
       const keepRecentOptions = [10, 6, 3, 0];
@@ -738,18 +685,14 @@ class _GameScreenState extends State<GameScreen>
             .skip(_usedAnswers.length - keepRecent)
             .toSet();
         clues = theme.pickClues(10, maxLen: gridSize, exclude: recentlyUsed);
-        debugPrint(
-          '⚠️ Reusing older clues while avoiding $keepRecent most recent. Got ${clues.length} clues',
-        );
+        debugPrint('⚠️ Reusing older clues while avoiding $keepRecent most recent. Got ${clues.length} clues');
         if (clues.length >= 10) {
           break;
         }
       }
 
       if (clues.length < 10) {
-        debugPrint(
-          '⚠️ Still short (${clues.length}/10). Backfilling with any available clues, even repeats.',
-        );
+        debugPrint('⚠️ Still short (${clues.length}/10). Backfilling with any available clues, even repeats.');
         final fallback = theme.pickClues(10, maxLen: gridSize);
         final existingAnswers = clues.map((c) => c.answer).toSet();
 
@@ -770,13 +713,11 @@ class _GameScreenState extends State<GameScreen>
         }
 
         if (clues.length < 10) {
-          debugPrint(
-            '⚠️ Theme fallback failed to provide 10 clues. Using placeholder entries.',
-          );
+          debugPrint('⚠️ Theme fallback failed to provide 10 clues. Using placeholder entries.');
         }
       }
     }
-
+    
     final chosen = (clues.length >= 10)
         ? clues.take(10).toList()
         : (clues +
@@ -790,9 +731,7 @@ class _GameScreenState extends State<GameScreen>
 
     _usedAnswers.addAll(chosen.map((c) => c.answer));
 
-    debugPrint(
-      'Selected words: ${chosen.map((c) => '${c.answer}(${c.answer.length})').join(', ')}',
-    );
+    debugPrint('Selected words: ${chosen.map((c) => '${c.answer}(${c.answer.length})').join(', ')}');
 
     // Reset celebration flag so fireworks can play again
     final gc = context.read<GameController>();
@@ -825,9 +764,7 @@ class _GameScreenState extends State<GameScreen>
       debugPrint('🎬 Starting timer for timed scene: ${_currentScene.title}');
       await _startSceneTimer(_currentScene.timeLimit!);
     } else {
-      debugPrint(
-        '🎬 Scene loaded: ${_currentScene.title}, timed: $_isTimedScene',
-      );
+      debugPrint('🎬 Scene loaded: ${_currentScene.title}, timed: $_isTimedScene');
       setState(() {
         _remainingSeconds = null;
         _sceneDurationSeconds = null;
@@ -842,9 +779,7 @@ class _GameScreenState extends State<GameScreen>
         chosen.map((c) => c.answer).toList(),
       );
       if (candidate == null) continue;
-      final ok = chosen.every(
-        (clue) => _isWordInGrid(candidate.grid, clue.answer),
-      );
+      final ok = chosen.every((clue) => _isWordInGrid(candidate.grid, clue.answer));
       if (ok) {
         puzzle = candidate;
         break;
@@ -853,10 +788,7 @@ class _GameScreenState extends State<GameScreen>
 
     if (puzzle == null) {
       debugPrint('Constrained algorithm failed, trying simpler approach...');
-      puzzle = _generateSimplePuzzle(
-        gridSize,
-        chosen.map((c) => c.answer).toList(),
-      );
+      puzzle = _generateSimplePuzzle(gridSize, chosen.map((c) => c.answer).toList());
       if (puzzle != null) {
         debugPrint('Simple algorithm succeeded');
       } else {
@@ -865,11 +797,9 @@ class _GameScreenState extends State<GameScreen>
     }
 
     if (puzzle == null) {
-      debugPrint(
-        'Failed to generate a valid puzzle after $maxAttempts attempts',
-      );
+      debugPrint('Failed to generate a valid puzzle after $maxAttempts attempts');
       debugPrint('Using basic fallback grid for Scene ${_currentScene.index}');
-
+      
       // Fallback: Create a simple grid with words placed horizontally
       final grid = List.generate(
         gridSize,
@@ -880,7 +810,7 @@ class _GameScreenState extends State<GameScreen>
       int row = 0;
       int col = 0;
       final wordsToPlace = chosen.map((c) => c.answer.toUpperCase()).toList();
-
+      
       for (final word in wordsToPlace) {
         // If word doesn't fit in current row, move to next row
         if (col + word.length > gridSize) {
@@ -894,7 +824,7 @@ class _GameScreenState extends State<GameScreen>
         }
         col += word.length + 1; // Space between words
       }
-
+      
       // Fill remaining empty cells with random letters
       for (int r = 0; r < gridSize; r++) {
         for (int c = 0; c < gridSize; c++) {
@@ -903,7 +833,7 @@ class _GameScreenState extends State<GameScreen>
           }
         }
       }
-
+      
       puzzle = _Puzzle(grid: grid, words: wordsToPlace);
       debugPrint('Fallback grid created with ${wordsToPlace.length} words');
     }
@@ -930,9 +860,8 @@ class _GameScreenState extends State<GameScreen>
     _sceneTimer?.cancel();
     _sceneTimer = null;
     // Stop countdown music when timer is cancelled
-    await _gameController.feedback.stopCountdownMusic(
-      resumeBackground: resumeBackground,
-    );
+    final gc = context.read<GameController>();
+    await gc.feedback.stopCountdownMusic(resumeBackground: resumeBackground);
   }
 
   Future<void> _startSceneTimer(Duration limit) async {
@@ -949,11 +878,12 @@ class _GameScreenState extends State<GameScreen>
       _remainingSeconds = totalSeconds;
       _sceneDurationSeconds ??= totalSeconds;
     });
-
+    
     // Start countdown music for timed scenes
+    final gc = context.read<GameController>();
     debugPrint('🎬 Starting countdown music for scene: ${_currentScene.title}');
-    await _gameController.feedback.startCountdownMusic();
-
+    await gc.feedback.startCountdownMusic();
+    
     _sceneTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) {
         timer.cancel();
@@ -980,75 +910,80 @@ class _GameScreenState extends State<GameScreen>
   }
 
   void _playMetronomeTick(int remainingSeconds) {
-    final feedback = _gameController.feedback;
-    if (feedback.countdownActive) {
+    final gc = context.read<GameController>();
+    if (gc.feedback.countdownActive) {
       return;
     }
     if (!_dangerHapticTriggered && remainingSeconds <= 20) {
       _dangerHapticTriggered = true;
-      unawaited(feedback.hapticLight());
+      unawaited(gc.feedback.hapticLight());
     }
-
+    
     // Milestone celebrations (positive reinforcement)
     if (remainingSeconds == 60) {
       _showMilestoneFeedback('One Minute Left! 💪');
-      unawaited(feedback.hapticMedium());
+      unawaited(gc.feedback.hapticMedium());
     } else if (remainingSeconds == 45) {
       _showMilestoneFeedback('45 Seconds - Keep Going! 🎯');
-      unawaited(feedback.hapticLight());
+      unawaited(gc.feedback.hapticLight());
     } else if (remainingSeconds == 30) {
       _showMilestoneFeedback('30 Seconds - You Got This! 🔥');
-      unawaited(feedback.hapticMedium());
+      unawaited(gc.feedback.hapticMedium());
     } else if (remainingSeconds == 15) {
       _showMilestoneFeedback('15 Seconds - Final Push! 🚀');
-      unawaited(feedback.hapticMedium());
+      unawaited(gc.feedback.hapticMedium());
     }
-
+    
     // Escalating audio patterns based on time remaining
     if (remainingSeconds <= 5) {
       // Critical: Rapid double-tick with haptics
-      unawaited(feedback.playTick());
-      unawaited(feedback.hapticHeavy());
+      unawaited(gc.feedback.playTick());
+      unawaited(gc.feedback.hapticHeavy());
       Future.delayed(const Duration(milliseconds: 180), () {
         if (!mounted) return;
-        unawaited(feedback.playTick());
+        unawaited(gc.feedback.playTick());
       });
     } else if (remainingSeconds <= 10) {
       // High urgency: Double-tick with medium haptics
-      unawaited(feedback.playTick());
+      unawaited(gc.feedback.playTick());
       if (remainingSeconds % 2 == 0) {
-        unawaited(feedback.hapticMedium());
+        unawaited(gc.feedback.hapticMedium());
       }
       Future.delayed(const Duration(milliseconds: 260), () {
         if (!mounted) return;
-        unawaited(feedback.playTick());
+        unawaited(gc.feedback.playTick());
       });
     } else if (remainingSeconds <= 30) {
       // Medium urgency: Single tick with light haptics every 3 seconds
-      unawaited(feedback.playTick());
+      unawaited(gc.feedback.playTick());
       if (remainingSeconds % 3 == 0) {
-        unawaited(feedback.hapticLight());
+        unawaited(gc.feedback.hapticLight());
       }
     } else {
       // Normal: Single tick
-      unawaited(feedback.playTick());
+      unawaited(gc.feedback.playTick());
     }
   }
 
   void _showMilestoneFeedback(String message) {
     if (!mounted) return;
-
+    
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           message,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
           textAlign: TextAlign.center,
         ),
         backgroundColor: Colors.deepOrange.shade700,
         duration: const Duration(seconds: 2),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
         margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       ),
     );
@@ -1062,7 +997,8 @@ class _GameScreenState extends State<GameScreen>
       _sceneActive = false;
     });
     if (!mounted) return;
-    unawaited(_gameController.onInvalid());
+    final gc = context.read<GameController>();
+    unawaited(gc.onInvalid());
     _schedulePersistGameState(immediate: true);
   }
 
@@ -1080,9 +1016,7 @@ class _GameScreenState extends State<GameScreen>
 
   Future<void> _advanceScene() async {
     if (_startingNewPuzzle) return;
-    debugPrint(
-      '🎬 _advanceScene CALLED: stageIndex=$_currentStageIndex, sceneIndex=$_currentSceneIndex, hasMore=$_hasMoreScenes, isFinalScene=$_isFinalScene',
-    );
+    debugPrint('🎬 _advanceScene CALLED: stageIndex=$_currentStageIndex, sceneIndex=$_currentSceneIndex, hasMore=$_hasMoreScenes, isFinalScene=$_isFinalScene');
     setState(() {
       _startingNewPuzzle = true;
     });
@@ -1090,13 +1024,11 @@ class _GameScreenState extends State<GameScreen>
     // Try to show an interstitial ad between scenes/screens if one is ready.
     // This awaits ad dismissal before continuing; if no ad is cached, it no-ops.
     await InterstitialAdManager.instance.showIfAvailable();
-
+    
     // Check if this is the final scene BEFORE incrementing
     final bool isCurrentlyFinalScene = _isFinalScene;
-    debugPrint(
-      '🎬 isCurrentlyFinalScene=$isCurrentlyFinalScene (checking before increment)',
-    );
-
+    debugPrint('🎬 isCurrentlyFinalScene=$isCurrentlyFinalScene (checking before increment)');
+    
     if (isCurrentlyFinalScene) {
       // Finished all scenes in this stage, advance to next stage
       final isLastStage = (_currentStageIndex + 1) >= _allStages.length;
@@ -1108,50 +1040,46 @@ class _GameScreenState extends State<GameScreen>
           _currentSceneIndex = 0;
         });
       } else {
-        debugPrint(
-          '🎬 Stage complete, advancing from stage $_currentStageIndex to stage ${_currentStageIndex + 1}',
-        );
+        debugPrint('🎬 Stage complete, advancing from stage $_currentStageIndex to stage ${_currentStageIndex + 1}');
         setState(() {
           _currentStageIndex++;
           _currentSceneIndex = 0;
         });
       }
-
+      
       // Initialize the new stage before showing progress path
       await _initializeStage();
-
+      
       // Show progress path when changing stages
       // (_initializeStage already set _showProgressPath = true)
       // Wait for progress path to be dismissed before loading puzzle
       return;
     } else {
       // Not the final scene yet, advance to next scene
-      debugPrint(
-        '🎬 NOT final scene - Advancing from scene $_currentSceneIndex to scene ${_currentSceneIndex + 1}',
-      );
+      debugPrint('🎬 NOT final scene - Advancing from scene $_currentSceneIndex to scene ${_currentSceneIndex + 1}');
       setState(() {
         _currentSceneIndex++;
       });
       debugPrint('🎬 Scene advanced to: $_currentSceneIndex');
     }
-
+    
     await _loadPuzzle();
     if (!mounted) return;
     setState(() {
       _startingNewPuzzle = false;
     });
   }
-
+  
   Future<void> _onProgressPathComplete() async {
     setState(() {
       _showProgressPath = false;
     });
-
+    
     // Only load puzzle if it hasn't been loaded yet (grid is null)
     if (grid == null) {
       await _loadPuzzle();
     }
-
+    
     if (!mounted) return;
     setState(() {
       _startingNewPuzzle = false;
@@ -1160,13 +1088,11 @@ class _GameScreenState extends State<GameScreen>
 
   Future<void> _onScreenSelected(int stageIndex) async {
     // User selected a completed screen to replay from scene 1
-    debugPrint(
-      '🎬 _onScreenSelected: stageIndex=$stageIndex (before update: current=$_currentStageIndex, scene=$_currentSceneIndex)',
-    );
-
+    debugPrint('🎬 _onScreenSelected: stageIndex=$stageIndex (before update: current=$_currentStageIndex, scene=$_currentSceneIndex)');
+    
     // Clear any saved game state to ensure fresh start
     await _gamePersistence.clear();
-
+    
     setState(() {
       _currentStageIndex = stageIndex;
       _currentSceneIndex = 0;
@@ -1177,28 +1103,20 @@ class _GameScreenState extends State<GameScreen>
         _usedAnswers.removeAll(_usedAnswers.take(toRemove).toList());
       }
     });
-
-    debugPrint(
-      '🎬 _onScreenSelected: After setState - current=$_currentStageIndex, scene=$_currentSceneIndex',
-    );
-
+    
+    debugPrint('🎬 _onScreenSelected: After setState - current=$_currentStageIndex, scene=$_currentSceneIndex');
+    
     // Initialize the stage without showing progress path (unlike _initializeStage which shows path)
-    final dict = await ThemeDictionary.loadFromAsset(
-      'assets/key and themes.txt',
-    );
+    final dict = await ThemeDictionary.loadFromAsset('assets/key and themes.txt');
     final theme = dict.findByName(_stageDefinition.themeName);
     setState(() {
       _themeDictionary = dict;
       _stageTheme = theme;
     });
-
-    debugPrint(
-      '🎬 _onScreenSelected: After theme load - current=$_currentStageIndex, scene=$_currentSceneIndex',
-    );
+    
+    debugPrint('🎬 _onScreenSelected: After theme load - current=$_currentStageIndex, scene=$_currentSceneIndex');
     await _loadPuzzle();
-    debugPrint(
-      '🎬 _onScreenSelected: After _loadPuzzle - current=$_currentStageIndex, scene=$_currentSceneIndex',
-    );
+    debugPrint('🎬 _onScreenSelected: After _loadPuzzle - current=$_currentStageIndex, scene=$_currentSceneIndex');
   }
 
   void _showSceneIntro() {
@@ -1208,9 +1126,7 @@ class _GameScreenState extends State<GameScreen>
     final sceneIndexLabel = 'SCENE ${_currentScene.index}';
     final sceneTitle = _currentScene.title.toUpperCase();
 
-    debugPrint(
-      '🎬 _showSceneIntro: _currentSceneIndex=$_currentSceneIndex, _currentScene.index=${_currentScene.index}, sceneIndexLabel=$sceneIndexLabel',
-    );
+    debugPrint('🎬 _showSceneIntro: _currentSceneIndex=$_currentSceneIndex, _currentScene.index=${_currentScene.index}, sceneIndexLabel=$sceneIndexLabel');
 
     setState(() {
       _clapboardLabel = sceneIndexLabel;
@@ -1226,18 +1142,18 @@ class _GameScreenState extends State<GameScreen>
     InterstitialAdManager.instance.load(adUnitId: interstitialUnit);
 
     final gameController = context.read<GameController>();
-
+    
     // Synchronize sounds and haptics with the clapboard animation
     // Animation: 800ms total with 4 stages
     // Stage 1 (0-160ms): First clap down - sound at 0ms
     // Stage 2 (160-320ms): First clap up - sound at 160ms
     // Stage 3 (320-480ms): Second clap down - sound at 320ms
     // Stage 4 (480-800ms): Second clap up and settle - sound at 480ms
-
+    
     if (gameController.settings.soundEnabled) {
       unawaited(gameController.feedback.playClapboard());
     }
-
+    
     if (gameController.settings.hapticsEnabled) {
       // First clap - medium haptic
       unawaited(gameController.feedback.hapticMedium());
@@ -1267,32 +1183,20 @@ class _GameScreenState extends State<GameScreen>
     final remaining = _remainingSeconds!.clamp(0, 5999).toInt();
     final total = _sceneDurationSeconds ?? 90;
     final progress = remaining / total;
-
+    
     // Color transitions: green → yellow → orange → red
     final Color timerColor;
     if (progress > 0.5) {
       // Green to yellow (50% to 100%)
-      timerColor = Color.lerp(
-        Colors.yellow.shade600,
-        Colors.green.shade500,
-        (progress - 0.5) * 2,
-      )!;
+      timerColor = Color.lerp(Colors.yellow.shade600, Colors.green.shade500, (progress - 0.5) * 2)!;
     } else if (progress > 0.2) {
       // Yellow to orange (20% to 50%)
-      timerColor = Color.lerp(
-        Colors.orange.shade600,
-        Colors.yellow.shade600,
-        (progress - 0.2) / 0.3,
-      )!;
+      timerColor = Color.lerp(Colors.orange.shade600, Colors.yellow.shade600, (progress - 0.2) / 0.3)!;
     } else {
       // Orange to red (0% to 20%)
-      timerColor = Color.lerp(
-        Colors.red.shade600,
-        Colors.orange.shade600,
-        progress / 0.2,
-      )!;
+      timerColor = Color.lerp(Colors.red.shade600, Colors.orange.shade600, progress / 0.2)!;
     }
-
+    
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1316,29 +1220,17 @@ class _GameScreenState extends State<GameScreen>
     final remaining = _remainingSeconds!.clamp(0, 5999).toInt();
     final total = _sceneDurationSeconds ?? 90;
     final progress = remaining / total;
-
+    
     // Color transitions for the fuse
     final Color fuseColor;
     if (progress > 0.5) {
-      fuseColor = Color.lerp(
-        Colors.orange.shade400,
-        Colors.orange.shade300,
-        (progress - 0.5) * 2,
-      )!;
+      fuseColor = Color.lerp(Colors.orange.shade400, Colors.orange.shade300, (progress - 0.5) * 2)!;
     } else if (progress > 0.2) {
-      fuseColor = Color.lerp(
-        Colors.deepOrange.shade500,
-        Colors.orange.shade400,
-        (progress - 0.2) / 0.3,
-      )!;
+      fuseColor = Color.lerp(Colors.deepOrange.shade500, Colors.orange.shade400, (progress - 0.2) / 0.3)!;
     } else {
-      fuseColor = Color.lerp(
-        Colors.red.shade600,
-        Colors.deepOrange.shade500,
-        progress / 0.2,
-      )!;
+      fuseColor = Color.lerp(Colors.red.shade600, Colors.deepOrange.shade500, progress / 0.2)!;
     }
-
+    
     return Container(
       height: 6,
       margin: const EdgeInsets.symmetric(horizontal: 24),
@@ -1414,7 +1306,7 @@ class _GameScreenState extends State<GameScreen>
     Color glowColor;
     double opacity;
     double blurRadius;
-
+    
     switch (urgencyLevel) {
       case 3: // Critical (0-5 seconds)
         glowColor = Colors.red;
@@ -1434,17 +1326,17 @@ class _GameScreenState extends State<GameScreen>
       default:
         return const SizedBox.shrink();
     }
-
+    
     return TweenAnimationBuilder<double>(
       key: ValueKey(urgencyLevel),
       tween: Tween(begin: 0.0, end: 1.0),
       duration: Duration(milliseconds: urgencyLevel == 3 ? 400 : 600),
       curve: Curves.easeInOut,
       builder: (context, value, child) {
-        final pulseValue = urgencyLevel == 3
+        final pulseValue = urgencyLevel == 3 
             ? (sin(_metronomeBeat * pi) * 0.3 + 0.7) // Rapid pulse for critical
             : value;
-
+        
         return Container(
           decoration: BoxDecoration(
             boxShadow: [
@@ -1462,14 +1354,11 @@ class _GameScreenState extends State<GameScreen>
 
   /// Build filmstrip-style progress bar
   Widget _buildFilmstripProgressBar(BuildContext context) {
-    if (!_isTimedScene || _remainingSeconds == null) {
-      return const SizedBox.shrink();
-    }
-
-    final totalSeconds = max(_sceneDurationSeconds ?? 0, 1);
-    final remaining = _remainingSeconds!.clamp(0, totalSeconds).toDouble();
-    final progress = (remaining / totalSeconds).clamp(0.0, 1.0);
-
+    final remaining = _remainingSeconds!.clamp(0, 5999).toInt();
+    final total = _sceneDurationSeconds ?? 90;
+    final progress = remaining / total;
+    
+    // Color based on urgency
     Color barColor;
     if (progress > 0.5) {
       barColor = Colors.green.shade600;
@@ -1478,85 +1367,49 @@ class _GameScreenState extends State<GameScreen>
     } else {
       barColor = Colors.red.shade600;
     }
-
-    final surfaceOverlay = Theme.of(context).colorScheme.surfaceTint;
-
+    
     return Container(
-      height: 18,
-      margin: const EdgeInsets.symmetric(horizontal: 24),
+      height: 16,
+      margin: const EdgeInsets.symmetric(horizontal: 20),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(6),
+        color: Colors.black.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(4),
         border: Border.all(
-          color: const Color(0xFF3A2C1B).withValues(alpha: 0.55),
+          color: Colors.brown.withOpacity(0.3),
           width: 1,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.35),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(5),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final targetWidth = constraints.maxWidth * progress;
-            return Stack(
-              fit: StackFit.expand,
-              children: [
-                Positioned.fill(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          const Color(0xFF1C1C1E),
-                          const Color(0xFF151517),
-                        ],
-                      ),
-                    ),
+        borderRadius: BorderRadius.circular(3),
+        child: Stack(
+          children: [
+            // Progress bar fill
+            FractionallySizedBox(
+              widthFactor: progress,
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [barColor, barColor.withOpacity(0.7)],
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
                   ),
                 ),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 260),
-                    curve: Curves.easeOutCubic,
-                    width: targetWidth,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.centerLeft,
-                        end: Alignment.centerRight,
-                        colors: [
-                          Color.lerp(barColor, surfaceOverlay, 0.08) ??
-                              barColor,
-                          Color.lerp(barColor, Colors.black, 0.2) ??
-                              barColor,
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned.fill(
-                  child: CustomPaint(
-                    painter: _FilmstripPainter(
-                      color: Colors.white.withValues(alpha: 0.18),
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
+              ),
+            ),
+            // Filmstrip perforations
+            CustomPaint(
+              painter: _FilmstripPainter(
+                color: Colors.white.withOpacity(0.15),
+              ),
+              size: const Size(double.infinity, 16),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  String get _currentSceneTheme =>
-      _stageTheme?.name.toUpperCase() ?? 'BOLLY WORD GRID';
+  String get _currentSceneTheme => _stageTheme?.name.toUpperCase() ?? 'BOLLY WORD GRID';
 
   String _firstLetterHint(Clue clue) {
     final ans = clue.answer;
@@ -1575,9 +1428,7 @@ class _GameScreenState extends State<GameScreen>
           color: Colors.black.withOpacity(0.78),
           alignment: Alignment.center,
           child: TweenAnimationBuilder<double>(
-            key: ValueKey<String>(
-              'clapboard_${_clapboardLabel}_$_clapboardSubtitle',
-            ),
+            key: ValueKey<String>('clapboard_${_clapboardLabel}_$_clapboardSubtitle'),
             tween: Tween<double>(begin: 0.0, end: 1.0),
             duration: const Duration(milliseconds: 320),
             curve: Curves.easeOutCubic,
@@ -1585,7 +1436,10 @@ class _GameScreenState extends State<GameScreen>
               final scale = 0.82 + (0.18 * value);
               return Opacity(
                 opacity: value.clamp(0.0, 1.0),
-                child: Transform.scale(scale: scale, child: child),
+                child: Transform.scale(
+                  scale: scale,
+                  child: child,
+                ),
               );
             },
             child: _ClapboardCard(
@@ -1612,23 +1466,18 @@ class _GameScreenState extends State<GameScreen>
   ) {
     final sc = controller;
     final answer = clue.answer.toUpperCase();
-    final isFound = sc != null && sc.found.any((f) => f.word == answer);
-    final color = sc?.wordColors[answer];
-    final hasPurchased = _revealedClues.contains(answer);
-    final isRevealed = !_isHiddenScene || hasPurchased || isFound;
-    final canReveal =
-        _isHiddenScene &&
-        !hasPurchased &&
-        !isFound &&
-        _sceneActive &&
-        !_timeExpired;
-    final displayLabel = _isHiddenScene
-        ? (isFound
-              ? clue.label
-              : hasPurchased
-              ? _firstLetterHint(clue)
-              : clue.answer.length.toString())
-        : clue.label;
+  final isFound = sc != null && sc.found.any((f) => f.word == answer);
+  final color = sc?.wordColors[answer];
+  final hasPurchased = _revealedClues.contains(answer);
+  final isRevealed = !_isHiddenScene || hasPurchased || isFound;
+  final canReveal = _isHiddenScene && !hasPurchased && !isFound && _sceneActive && !_timeExpired;
+  final displayLabel = _isHiddenScene
+    ? (isFound
+      ? clue.label
+      : hasPurchased
+        ? _firstLetterHint(clue)
+        : clue.answer.length.toString())
+    : clue.label;
     final textColor = isFound
         ? Colors.white
         : (isRevealed ? onSurface : Theme.of(context).colorScheme.primary);
@@ -1649,11 +1498,17 @@ class _GameScreenState extends State<GameScreen>
             },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
-        padding: const EdgeInsets.symmetric(vertical: 2.5, horizontal: 4.5),
+        padding: const EdgeInsets.symmetric(
+          vertical: 2.5,
+          horizontal: 4.5,
+        ),
         decoration: BoxDecoration(
           color: backgroundColor,
           borderRadius: BorderRadius.circular(7),
-          border: Border.all(color: borderColor, width: 1),
+          border: Border.all(
+            color: borderColor,
+            width: 1,
+          ),
           boxShadow: isFound
               ? [
                   BoxShadow(
@@ -1670,9 +1525,7 @@ class _GameScreenState extends State<GameScreen>
             fontSize: (isWide ? 14 : 11) * 1.05,
             fontWeight: FontWeight.w700,
             color: textColor,
-            decoration: isFound
-                ? TextDecoration.lineThrough
-                : TextDecoration.none,
+            decoration: isFound ? TextDecoration.lineThrough : TextDecoration.none,
           ),
         ),
       ),
@@ -1752,8 +1605,7 @@ class _GameScreenState extends State<GameScreen>
         while (!placed && tries < 220) {
           tries++;
           final dir = choices[rnd.nextInt(choices.length)];
-          final allowed =
-              (dir.dr == 0 && dir.dc == 1) ||
+          final allowed = (dir.dr == 0 && dir.dc == 1) ||
               (dir.dr == 0 && dir.dc == -1) ||
               (dir.dr == 1 && dir.dc == 0) ||
               (dir.dr == -1 && dir.dc == 0) ||
@@ -1769,18 +1621,12 @@ class _GameScreenState extends State<GameScreen>
           final col = colMin + rnd.nextInt(colMax - colMin + 1);
           if (_canPlace(grid, row, col, dir, word)) {
             _place(grid, row, col, dir, word);
-            if (dir.dr == 0 && dir.dc == 1)
-              placedRight++;
-            else if (dir.dr == 0 && dir.dc == -1)
-              placedLeft++;
-            else if (dir.dr == 1 && dir.dc == 0)
-              placedDown++;
-            else if (dir.dr == -1 && dir.dc == 0)
-              placedUp++;
-            else if (dir.dr == 1 && dir.dc == 1)
-              placedDiagDR++;
-            else if (dir.dr == 1 && dir.dc == -1)
-              placedDiagDL++;
+            if (dir.dr == 0 && dir.dc == 1) placedRight++;
+            else if (dir.dr == 0 && dir.dc == -1) placedLeft++;
+            else if (dir.dr == 1 && dir.dc == 0) placedDown++;
+            else if (dir.dr == -1 && dir.dc == 0) placedUp++;
+            else if (dir.dr == 1 && dir.dc == 1) placedDiagDR++;
+            else if (dir.dr == 1 && dir.dc == -1) placedDiagDL++;
             placed = true;
           }
         }
@@ -1804,7 +1650,7 @@ class _GameScreenState extends State<GameScreen>
             }
           }
         }
-        return _Puzzle(grid: grid, words: shuffled);
+  return _Puzzle(grid: grid, words: shuffled);
       }
     }
     return null;
@@ -1909,15 +1755,15 @@ class _GameScreenState extends State<GameScreen>
 
   void _spawnConfetti() {
     if (!mounted) return;
-
+    
     // Generate optimized confetti particles
     _confetti = OptimizedConfetti.createParticles(MediaQuery.of(context).size);
     _showConfettiNotifier.value = true;
-
+    
     // Start animation
     _confettiController.reset();
     _confettiController.forward();
-
+    
     // Hide confetti after animation completes
     Future.delayed(const Duration(milliseconds: 1500), () {
       if (mounted) _showConfettiNotifier.value = false;
@@ -1936,14 +1782,14 @@ class _GameScreenState extends State<GameScreen>
         onScreenSelected: _onScreenSelected,
       );
     }
-
+    
     final surface = Theme.of(context).colorScheme.surface;
     final onSurface = Theme.of(context).colorScheme.onSurface;
     final outline = Theme.of(context).colorScheme.outline;
     final width = MediaQuery.of(context).size.width;
     final isWide = width >= 900; // tablet breakpoint
 
-    return Scaffold(
+  return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
         leading: AnimatedRotation(
@@ -1964,12 +1810,7 @@ class _GameScreenState extends State<GameScreen>
             valueListenable: _scoreNotifier,
             builder: (context, score, child) {
               final settings = context.watch<FeedbackSettings>();
-              final canUseHints =
-                  settings.hintsEnabled &&
-                  score >= 20 &&
-                  _sel != null &&
-                  _sceneActive &&
-                  !_timeExpired;
+              final canUseHints = settings.hintsEnabled && score >= 20 && _sel != null && _sceneActive && !_timeExpired;
               return FloatingActionButton.small(
                 onPressed: !canUseHints
                     ? null
@@ -2008,90 +1849,58 @@ class _GameScreenState extends State<GameScreen>
               children: [
                 // Theme name bar
                 Container(
-                  width: double.infinity,
-                  color: Theme.of(context).colorScheme.primaryContainer,
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 6,
-                    horizontal: 16,
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          return ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxWidth: constraints.maxWidth,
-                            ),
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              alignment: Alignment.center,
-                              child: Text(
-                                _sceneHeaderLabel,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w700,
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onPrimaryContainer,
-                                ),
-                                textAlign: TextAlign.center,
+                width: double.infinity,
+                color: Theme.of(context).colorScheme.primaryContainer,
+                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        return ConstrainedBox(
+                          constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.center,
+                            child: Text(
+                              _sceneHeaderLabel,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                                color: Theme.of(context).colorScheme.onPrimaryContainer,
                               ),
+                              textAlign: TextAlign.center,
                             ),
-                          );
-                        },
-                      ),
-                      if (_isTimedScene && _remainingSeconds != null) ...[
-                        const SizedBox(height: 6),
-                        _buildTimerDisplay(context),
-                        const SizedBox(height: 6),
-                        _buildFilmstripProgressBar(context),
-                        const SizedBox(height: 8),
-                        _buildLitFuse(context),
-                      ],
+                          ),
+                        );
+                      },
+                    ),
+                    if (_isTimedScene && _remainingSeconds != null) ...[
+                      const SizedBox(height: 6),
+                      _buildTimerDisplay(context),
+                      const SizedBox(height: 8),
+                      _buildLitFuse(context),
                     ],
-                  ),
-                ),
+                  ],
+        ),
+            ),
                 // Key box with chips
                 Container(
                   width: double.infinity,
-                  color: surface,
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 12,
-                    horizontal: 8,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      // Rebuild the clue chips whenever selection/found state changes
-                      if (_sel != null)
-                        AnimatedBuilder(
-                          animation: _sel!,
-                          builder: (context, _) {
-                            final sc = _sel;
-                            return Wrap(
-                              alignment: WrapAlignment.center,
-                              spacing: 6,
-                              runSpacing: 2,
-                              children: _clues.asMap().entries.map((entry) {
-                                return _buildClueChip(
-                                  context,
-                                  entry.value,
-                                  entry.key,
-                                  sc,
-                                  isWide,
-                                  surface,
-                                  outline,
-                                  onSurface,
-                                );
-                              }).toList(),
-                            );
-                          },
-                        )
-                      else
-                        Wrap(
+              color: surface,
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // Rebuild the clue chips whenever selection/found state changes
+                  if (_sel != null)
+                    AnimatedBuilder(
+                      animation: _sel!,
+                      builder: (context, _) {
+                        final sc = _sel;
+                        return Wrap(
                           alignment: WrapAlignment.center,
                           spacing: 6,
                           runSpacing: 2,
@@ -2100,478 +1909,362 @@ class _GameScreenState extends State<GameScreen>
                               context,
                               entry.value,
                               entry.key,
-                              null,
+                              sc,
                               isWide,
                               surface,
                               outline,
                               onSurface,
                             );
                           }).toList(),
-                        ),
-                    ],
-                  ),
+                        );
+                      },
+                    )
+                  else
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 6,
+                      runSpacing: 2,
+                      children: _clues.asMap().entries.map((entry) {
+                        return _buildClueChip(
+                          context,
+                          entry.value,
+                          entry.key,
+                          null,
+                          isWide,
+                          surface,
+                          outline,
+                          onSurface,
+                        );
+                      }).toList(),
+                    ),
+                ],
+              ),
                 ),
                 // Selection preview listens directly to SelectionController changes
                 if (_sel != null)
                   AnimatedBuilder(
-                    animation: _sel!,
-                    builder: (context, _) {
-                      if (!_sel!.hasActive ||
-                          _sel!.activeString.isNotEmpty == false) {
-                        return const SizedBox(height: 35);
-                      }
-                      return Padding(
-                        padding: const EdgeInsets.only(top: 6, bottom: 3),
-                        child: Center(
-                          child: AnimatedScale(
-                            duration: const Duration(milliseconds: 120),
-                            scale: 1.0,
-                            child: AnimatedOpacity(
-                              key: ValueKey<String>(
-                                'preview_${_sel!.activeString}',
-                              ),
-                              duration: const Duration(milliseconds: 120),
-                              opacity: 1.0,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 3,
+                animation: _sel!,
+                builder: (context, _) {
+                  if (!_sel!.hasActive || _sel!.activeString.isNotEmpty == false) {
+                    return const SizedBox(height: 35);
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 6, bottom: 3),
+                    child: Center(
+                      child: AnimatedScale(
+                        duration: const Duration(milliseconds: 120),
+                        scale: 1.0,
+                        child: AnimatedOpacity(
+                          key: ValueKey<String>('preview_${_sel!.activeString}'),
+                          duration: const Duration(milliseconds: 120),
+                          opacity: 1.0,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2C2C2E),
+                              borderRadius: BorderRadius.circular(8),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.3),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 3),
+                                  spreadRadius: 0,
                                 ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF2C2C2E),
-                                  borderRadius: BorderRadius.circular(8),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.3),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 3),
-                                      spreadRadius: 0,
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 10,
+                                  height: 29,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF1C1C1E),
+                                    borderRadius: const BorderRadius.horizontal(left: Radius.circular(4)),
+                                    border: Border.all(color: Colors.black38, width: 1),
+                                  ),
+                                  child: Center(
+                                    child: Container(
+                                      width: 1.2,
+                                      height: 19,
+                                      color: Colors.white24,
                                     ),
-                                  ],
+                                  ),
                                 ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Container(
-                                      width: 10,
+                                Row(
+                                  children: _sel!.activeString.split('').map((letter) {
+                                    return Container(
+                                      width: 22,
                                       height: 29,
+                                      margin: const EdgeInsets.symmetric(horizontal: 1),
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFF1C1C1E),
-                                        borderRadius:
-                                            const BorderRadius.horizontal(
-                                              left: Radius.circular(4),
-                                            ),
+                                        color: _sel!.activeColor,
                                         border: Border.all(
-                                          color: Colors.black38,
+                                          color: _sel!.activeColor!.computeLuminance() > 0.5
+                                              ? Colors.black26
+                                              : Colors.white24,
                                           width: 1,
                                         ),
                                       ),
                                       child: Center(
-                                        child: Container(
-                                          width: 1.2,
-                                          height: 19,
-                                          color: Colors.white24,
-                                        ),
-                                      ),
-                                    ),
-                                    Row(
-                                      children: _sel!.activeString.split('').map((
-                                        letter,
-                                      ) {
-                                        return Container(
-                                          width: 22,
-                                          height: 29,
-                                          margin: const EdgeInsets.symmetric(
-                                            horizontal: 1,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: _sel!.activeColor,
-                                            border: Border.all(
-                                              color:
-                                                  _sel!.activeColor!
-                                                          .computeLuminance() >
-                                                      0.5
-                                                  ? Colors.black26
-                                                  : Colors.white24,
-                                              width: 1,
-                                            ),
-                                          ),
-                                          child: Center(
-                                            child: Text(
-                                              letter,
-                                              style: const TextStyle(
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.w800,
-                                                color: Colors.white,
-                                                shadows: [
-                                                  Shadow(
-                                                    offset: Offset(0, 1),
-                                                    blurRadius: 2,
-                                                    color: Colors.black45,
-                                                  ),
-                                                ],
+                                        child: Text(
+                                          letter,
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w800,
+                                            color: Colors.white,
+                                            shadows: [
+                                              Shadow(
+                                                offset: Offset(0, 1),
+                                                blurRadius: 2,
+                                                color: Colors.black45,
                                               ),
-                                            ),
+                                            ],
                                           ),
-                                        );
-                                      }).toList(),
-                                    ),
-                                    Container(
-                                      width: 10,
-                                      height: 29,
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF1C1C1E),
-                                        borderRadius:
-                                            const BorderRadius.horizontal(
-                                              right: Radius.circular(4),
-                                            ),
-                                        border: Border.all(
-                                          color: Colors.black38,
-                                          width: 1,
                                         ),
                                       ),
-                                      child: Center(
-                                        child: Container(
-                                          width: 1.2,
-                                          height: 19,
-                                          color: Colors.white24,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
+                                    );
+                                  }).toList(),
                                 ),
-                              ),
+                                Container(
+                                  width: 10,
+                                  height: 29,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF1C1C1E),
+                                    borderRadius: const BorderRadius.horizontal(right: Radius.circular(4)),
+                                    border: Border.all(color: Colors.black38, width: 1),
+                                  ),
+                                  child: Center(
+                                    child: Container(
+                                      width: 1.2,
+                                      height: 19,
+                                      color: Colors.white24,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
-                      );
-                    },
+                      ),
+                    ),
+                  );
+                },
                   )
                 else
                   const SizedBox(height: 35),
                 const SizedBox(height: 8),
                 Expanded(
-                  child: Center(
-                    child: AspectRatio(
-                      aspectRatio: 1,
-                      child: LayoutBuilder(
-                        builder: (context, inner) {
-                          if (_sel == null || grid == null) {
-                            return const Center(
-                              child: CircularProgressIndicator(),
-                            );
-                          }
-
-                          // Calculate urgency level for visual effects
-                          final urgencyLevel =
-                              _isTimedScene && _remainingSeconds != null
-                              ? _getUrgencyLevel(_remainingSeconds!)
-                              : 0;
-
-                          // Listen directly to SelectionController so grid and painter update on drag
-                          return AnimatedBuilder(
-                            animation: _sel!,
-                            builder: (context, __) {
-                              return Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  // Urgency glow effect
-                                  if (urgencyLevel > 0)
-                                    Positioned.fill(
-                                      child: _buildUrgencyGlowEffect(
-                                        urgencyLevel,
-                                      ),
-                                    ),
-                                  Center(
-                                    child: Container(
-                                      margin: const EdgeInsets.all(12),
+              child: Center(
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: LayoutBuilder(
+                    builder: (context, inner) {
+                      if (_sel == null || grid == null) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      
+                      // Calculate urgency level for visual effects
+                      final urgencyLevel = _isTimedScene && _remainingSeconds != null 
+                          ? _getUrgencyLevel(_remainingSeconds!)
+                          : 0;
+                      
+                      // Listen directly to SelectionController so grid and painter update on drag
+                      return AnimatedBuilder(
+                        animation: _sel!,
+                        builder: (context, __) {
+                          return Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              // Urgency glow effect
+                              if (urgencyLevel > 0)
+                                Positioned.fill(
+                                  child: _buildUrgencyGlowEffect(urgencyLevel),
+                                ),
+                              Center(
+                                child: Container(
+                                  margin: const EdgeInsets.all(12),
                                       decoration: const BoxDecoration(),
-                                      clipBehavior: Clip.none,
-                                      child: LayoutBuilder(
-                                        builder: (context, inner2) {
-                                          return GestureDetector(
-                                            onPanStart: (d) =>
-                                                _onGridPanStart(d, inner2),
-                                            onPanUpdate: (d) =>
-                                                _onGridPanUpdate(d, inner2),
-                                            onPanEnd: _onPanEnd,
-                                            child: Stack(
-                                              fit: StackFit.expand,
-                                              clipBehavior: Clip.none,
-                                              children: [
-                                                IgnorePointer(
-                                                  child: RepaintBoundary(
-                                                    child: CustomPaint(
-                                                      painter: FilmReelPainter(
-                                                        cellSize:
-                                                            inner2.maxWidth /
-                                                            gridSize,
-                                                        found: _sel!.found,
-                                                        activePath:
-                                                            _sel!.activePath,
-                                                        activeColor:
-                                                            _sel!.activeColor,
-                                                        surfaceColor: surface,
-                                                        debug: false,
-                                                        repaint:
-                                                            Listenable.merge([
-                                                              _sel!,
-                                                              ..._sel!.found.map(
-                                                                (fp) =>
-                                                                    fp.progress,
-                                                              ),
-                                                            ]),
+                                  clipBehavior: Clip.none,
+                                  child: LayoutBuilder(
+                                    builder: (context, inner2) {
+                                      return GestureDetector(
+                                        onPanStart: (d) => _onGridPanStart(d, inner2),
+                                        onPanUpdate: (d) => _onGridPanUpdate(d, inner2),
+                                        onPanEnd: _onPanEnd,
+                                        child: Stack(
+                                          fit: StackFit.expand,
+                                          clipBehavior: Clip.none,
+                                          children: [
+                                            IgnorePointer(
+                                              child: RepaintBoundary(
+                                                child: CustomPaint(
+                                                  painter: FilmReelPainter(
+                                                    cellSize: inner2.maxWidth / gridSize,
+                                                    found: _sel!.found,
+                                                    activePath: _sel!.activePath,
+                                                    activeColor: _sel!.activeColor,
+                                                    surfaceColor: surface,
+                                                    debug: false,
+                                                    repaint: Listenable.merge([
+                                                      _sel!,
+                                                      ..._sel!.found.map((fp) => fp.progress),
+                                                    ]),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                            RepaintBoundary(
+                                              child: GridView.builder(
+                                                physics: const NeverScrollableScrollPhysics(),
+                                                itemCount: gridSize * gridSize,
+                                                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                                  crossAxisCount: gridSize,
+                                                ),
+                                                itemBuilder: (context, index) {
+                                                  final row = index ~/ gridSize;
+                                                  final col = index % gridSize;
+                                                  final sc = _sel!;
+                                                  final cellOffset = Offset(row.toDouble(), col.toDouble());
+                                                  final inSelected = sc.activePath.contains(cellOffset);
+                                                  final inFound = _isInFoundPaths(cellOffset, sc);
+                                                  final tile = inner2.maxWidth / gridSize;
+                                                  final fontSize = ((tile * 0.55).clamp(14.0, isWide ? 48.0 : 36.0)) * 1.0;
+                                                  return AnimatedScale(
+                                                    duration: const Duration(milliseconds: 100),
+                                                    scale: inSelected ? 1.08 : 1.0,
+                                                    child: Container(
+                                                      margin: const EdgeInsets.all(2.5),
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.transparent,
+                                                        borderRadius: BorderRadius.circular(inSelected || inFound ? 10 : 8),
+                                                      ),
+                                                      child: Center(
+                                                        child: Text(
+                                                          grid![row][col],
+                                                          style: TextStyle(
+                                                            fontSize: fontSize,
+                                                            fontWeight: FontWeight.normal,
+                                                            color: (inSelected || inFound) ? Colors.white : onSurface,
+                                                          ),
+                                                        ),
                                                       ),
                                                     ),
-                                                  ),
-                                                ),
-                                                RepaintBoundary(
-                                                  child: GridView.builder(
-                                                    physics:
-                                                        const NeverScrollableScrollPhysics(),
-                                                    itemCount:
-                                                        gridSize * gridSize,
-                                                    gridDelegate:
-                                                        const SliverGridDelegateWithFixedCrossAxisCount(
-                                                          crossAxisCount:
-                                                              gridSize,
-                                                        ),
-                                                    itemBuilder: (context, index) {
-                                                      final row =
-                                                          index ~/ gridSize;
-                                                      final col =
-                                                          index % gridSize;
-                                                      final sc = _sel!;
-                                                      final cellOffset = Offset(
-                                                        row.toDouble(),
-                                                        col.toDouble(),
-                                                      );
-                                                      final inSelected = sc
-                                                          .activePath
-                                                          .contains(cellOffset);
-                                                      final inFound =
-                                                          _isInFoundPaths(
-                                                            cellOffset,
-                                                            sc,
-                                                          );
-                                                      final tile =
-                                                          inner2.maxWidth /
-                                                          gridSize;
-                                                      final fontSize =
-                                                          ((tile * 0.55).clamp(
-                                                            14.0,
-                                                            isWide
-                                                                ? 48.0
-                                                                : 36.0,
-                                                          )) *
-                                                          1.0;
-                                                      return AnimatedScale(
-                                                        duration:
-                                                            const Duration(
-                                                              milliseconds: 100,
-                                                            ),
-                                                        scale: inSelected
-                                                            ? 1.08
-                                                            : 1.0,
-                                                        child: Container(
-                                                          margin:
-                                                              const EdgeInsets.all(
-                                                                2.5,
-                                                              ),
-                                                          decoration: BoxDecoration(
-                                                            color: Colors
-                                                                .transparent,
-                                                            borderRadius:
-                                                                BorderRadius.circular(
-                                                                  inSelected ||
-                                                                          inFound
-                                                                      ? 10
-                                                                      : 8,
-                                                                ),
-                                                          ),
-                                                          child: Center(
-                                                            child: Text(
-                                                              grid![row][col],
-                                                              style: TextStyle(
-                                                                fontSize:
-                                                                    fontSize,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .normal,
-                                                                color:
-                                                                    (inSelected ||
-                                                                        inFound)
-                                                                    ? Colors
-                                                                          .white
-                                                                    : onSurface,
-                                                              ),
-                                                            ),
-                                                          ),
-                                                        ),
-                                                      );
-                                                    },
-                                                  ),
-                                                ),
-                                                // Grid overlay with horizontal and vertical lines
-                                                RepaintBoundary(
-                                                  child: CustomPaint(
-                                                    painter: _GridPainter(
-                                                      gridSize: gridSize,
-                                                      cellSize:
-                                                          inner2.maxWidth /
-                                                          gridSize,
-                                                      lineColor: Colors.grey
-                                                          .withOpacity(0.4),
-                                                      lineWidth: 1.0,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
+                                                  );
+                                                },
+                                              ),
                                             ),
-                                          );
-                                        },
-                                      ),
+                                            // Grid overlay with horizontal and vertical lines
+                                            RepaintBoundary(
+                                              child: CustomPaint(
+                                                painter: _GridPainter(
+                                                  gridSize: gridSize,
+                                                  cellSize: inner2.maxWidth / gridSize,
+                                                  lineColor: Colors.grey.withOpacity(0.4),
+                                                  lineWidth: 1.0,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                              _showConfetti ? OptimizedConfettiLayer(
+                                particles: _confetti,
+                                animation: _confettiAnimation,
+                              ) : const SizedBox.shrink(),
+                              if (_timeExpired)
+                                Positioned.fill(
+                                  child: Container(
+                                    color: Colors.black.withOpacity(0.45),
+                                    alignment: Alignment.center,
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Text(
+                                          "Time's up!",
+                                          style: TextStyle(
+                                            fontSize: 22,
+                                            fontWeight: FontWeight.w800,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        FilledButton.icon(
+                                          onPressed: _startingNewPuzzle ? null : _restartScene,
+                                          icon: const Icon(Icons.refresh),
+                                          label: Text(_startingNewPuzzle ? 'Loading…' : 'Retry scene'),
+                                          style: FilledButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                                            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                                            backgroundColor: Theme.of(context).colorScheme.errorContainer,
+                                            foregroundColor: Theme.of(context).colorScheme.onErrorContainer,
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                  _showConfetti
-                                      ? OptimizedConfettiLayer(
-                                          particles: _confetti,
-                                          animation: _confettiAnimation,
-                                        )
-                                      : const SizedBox.shrink(),
-                                  if (_timeExpired)
-                                    Positioned.fill(
-                                      child: Container(
-                                        color: Colors.black.withOpacity(0.45),
-                                        alignment: Alignment.center,
-                                        child: Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            const Text(
-                                              "Time's up!",
-                                              style: TextStyle(
-                                                fontSize: 22,
-                                                fontWeight: FontWeight.w800,
-                                                color: Colors.white,
-                                              ),
+                                )
+                              else if (_sel?.isComplete == true)
+                                Positioned.fill(
+                                  child: Container(
+                                    color: Colors.black.withOpacity(0.55),
+                                    alignment: Alignment.center,
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (_isFinalScene && (_currentStageIndex + 1) >= _allStages.length) ...[
+                                          const Text(
+                                            'All screens complete! 🎉',
+                                            style: TextStyle(
+                                              fontSize: 20,
+                                              fontWeight: FontWeight.w800,
+                                              color: Colors.white,
                                             ),
-                                            const SizedBox(height: 12),
-                                            FilledButton.icon(
-                                              onPressed: _startingNewPuzzle
-                                                  ? null
-                                                  : _restartScene,
-                                              icon: const Icon(Icons.refresh),
-                                              label: Text(
-                                                _startingNewPuzzle
-                                                    ? 'Loading…'
-                                                    : 'Retry scene',
-                                              ),
-                                              style: FilledButton.styleFrom(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 20,
-                                                      vertical: 14,
-                                                    ),
-                                                textStyle: const TextStyle(
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.w700,
-                                                ),
-                                                backgroundColor: Theme.of(
-                                                  context,
-                                                ).colorScheme.errorContainer,
-                                                foregroundColor: Theme.of(
-                                                  context,
-                                                ).colorScheme.onErrorContainer,
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(12),
-                                                ),
-                                              ),
-                                            ),
-                                          ],
+                                          ),
+                                          const SizedBox(height: 12),
+                                        ] else
+                                          const SizedBox(height: 8),
+                                        FilledButton.icon(
+                                          onPressed: _startingNewPuzzle ? null : _advanceScene,
+                                          icon: Icon(
+                                            (_isFinalScene && (_currentStageIndex + 1) >= _allStages.length)
+                                                ? Icons.replay
+                                                : Icons.arrow_forward,
+                                          ),
+                                          label: Text(
+                                            _startingNewPuzzle
+                                                ? 'Loading…'
+                                                : (_isFinalScene
+                                                    ? ((_currentStageIndex + 1) >= _allStages.length
+                                                        ? 'Play again'
+                                                        : 'Next screen')
+                                                    : 'Next scene'),
+                                          ),
+                                          style: FilledButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                                            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                                            backgroundColor: Theme.of(context).colorScheme.primary,
+                                            foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                          ),
                                         ),
-                                      ),
-                                    )
-                                  else if (_sel?.isComplete == true)
-                                    Positioned.fill(
-                                      child: Container(
-                                        color: Colors.black.withOpacity(0.55),
-                                        alignment: Alignment.center,
-                                        child: Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            if (_isFinalScene &&
-                                                (_currentStageIndex + 1) >=
-                                                    _allStages.length) ...[
-                                              const Text(
-                                                'All screens complete! 🎉',
-                                                style: TextStyle(
-                                                  fontSize: 20,
-                                                  fontWeight: FontWeight.w800,
-                                                  color: Colors.white,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 12),
-                                            ] else
-                                              const SizedBox(height: 8),
-                                            FilledButton.icon(
-                                              onPressed: _startingNewPuzzle
-                                                  ? null
-                                                  : _advanceScene,
-                                              icon: Icon(
-                                                (_isFinalScene &&
-                                                        (_currentStageIndex +
-                                                                1) >=
-                                                            _allStages.length)
-                                                    ? Icons.replay
-                                                    : Icons.arrow_forward,
-                                              ),
-                                              label: Text(
-                                                _startingNewPuzzle
-                                                    ? 'Loading…'
-                                                    : (_isFinalScene
-                                                          ? ((_currentStageIndex +
-                                                                        1) >=
-                                                                    _allStages
-                                                                        .length
-                                                                ? 'Play again'
-                                                                : 'Next screen')
-                                                          : 'Next scene'),
-                                              ),
-                                              style: FilledButton.styleFrom(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 20,
-                                                      vertical: 14,
-                                                    ),
-                                                textStyle: const TextStyle(
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.w700,
-                                                ),
-                                                backgroundColor: Theme.of(
-                                                  context,
-                                                ).colorScheme.primary,
-                                                foregroundColor: Theme.of(
-                                                  context,
-                                                ).colorScheme.onPrimary,
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(12),
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
+                                      ],
                                     ),
-                                ],
-                              );
-                            },
+                                  ),
+                                ),
+                            ],
                           );
                         },
-                      ),
-                    ),
+                      );
+                    },
                   ),
+                ),
+              ),
                 ),
                 if (_isBannerAdLoaded && _bannerAd != null)
                   SafeArea(
@@ -2585,7 +2278,8 @@ class _GameScreenState extends State<GameScreen>
                   ),
               ],
             ),
-            if (_showClapboard) _buildClapboardOverlay(context),
+            if (_showClapboard)
+              _buildClapboardOverlay(context),
           ],
         ),
       ),
@@ -2598,12 +2292,12 @@ class _GameScreenState extends State<GameScreen>
     // (safe to fire-and-forget during widget disposal)
     InterstitialAdManager.instance.dispose();
     _bannerAd?.dispose();
-    unawaited(_cancelSceneTimer());
+  unawaited(_cancelSceneTimer());
     // Release animation controller back to pool
     AnimationManager().releaseController(_confettiController, id: 'confetti');
     // Dispose ValueNotifiers
     _scoreNotifier.dispose();
-    _hintUnlockedNotifier.dispose();
+    _hintUnlockedNotifier.dispose(); 
     _showConfettiNotifier.dispose();
     _selectionNotifier.dispose();
     _saveDebounce?.cancel();
@@ -2646,34 +2340,26 @@ class _ClapboardCardState extends State<_ClapboardCard>
     _clapAnimation = TweenSequence<double>([
       // Quick clap down
       TweenSequenceItem(
-        tween: Tween<double>(
-          begin: 0.0,
-          end: -0.4,
-        ).chain(CurveTween(curve: Curves.easeOut)),
+        tween: Tween<double>(begin: 0.0, end: -0.4)
+            .chain(CurveTween(curve: Curves.easeOut)),
         weight: 20,
       ),
       // Quick clap up
       TweenSequenceItem(
-        tween: Tween<double>(
-          begin: -0.4,
-          end: 0.0,
-        ).chain(CurveTween(curve: Curves.easeIn)),
+        tween: Tween<double>(begin: -0.4, end: 0.0)
+            .chain(CurveTween(curve: Curves.easeIn)),
         weight: 20,
       ),
       // Second clap down
       TweenSequenceItem(
-        tween: Tween<double>(
-          begin: 0.0,
-          end: -0.4,
-        ).chain(CurveTween(curve: Curves.easeOut)),
+        tween: Tween<double>(begin: 0.0, end: -0.4)
+            .chain(CurveTween(curve: Curves.easeOut)),
         weight: 20,
       ),
       // Second clap up and settle
       TweenSequenceItem(
-        tween: Tween<double>(
-          begin: -0.4,
-          end: -0.09,
-        ).chain(CurveTween(curve: Curves.easeInOut)),
+        tween: Tween<double>(begin: -0.4, end: -0.09)
+            .chain(CurveTween(curve: Curves.easeInOut)),
         weight: 40,
       ),
     ]).animate(_clapController);
@@ -2766,8 +2452,9 @@ class _ClapboardCardState extends State<_ClapboardCard>
             top: -6,
             child: AnimatedBuilder(
               animation: _clapAnimation,
-              builder: (context, child) =>
-                  _ClapboardHeader(rotationAngle: _clapAnimation.value),
+              builder: (context, child) => _ClapboardHeader(
+                rotationAngle: _clapAnimation.value,
+              ),
             ),
           ),
         ],
@@ -2822,9 +2509,7 @@ class _ClapboardHeader extends StatelessWidget {
                       return Expanded(
                         child: Container(
                           decoration: BoxDecoration(
-                            color: isLight
-                                ? Colors.white
-                                : const Color(0xFF111111),
+                            color: isLight ? Colors.white : const Color(0xFF111111),
                           ),
                         ),
                       );
@@ -2863,22 +2548,30 @@ class _GridPainter extends CustomPainter {
     // Draw vertical lines
     for (int i = 0; i <= gridSize; i++) {
       final x = i * cellSize;
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+      canvas.drawLine(
+        Offset(x, 0),
+        Offset(x, size.height),
+        paint,
+      );
     }
 
     // Draw horizontal lines
     for (int i = 0; i <= gridSize; i++) {
       final y = i * cellSize;
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+      canvas.drawLine(
+        Offset(0, y),
+        Offset(size.width, y),
+        paint,
+      );
     }
   }
 
   @override
   bool shouldRepaint(covariant _GridPainter oldDelegate) {
     return oldDelegate.gridSize != gridSize ||
-        oldDelegate.cellSize != cellSize ||
-        oldDelegate.lineColor != lineColor ||
-        oldDelegate.lineWidth != lineWidth;
+           oldDelegate.cellSize != cellSize ||
+           oldDelegate.lineColor != lineColor ||
+           oldDelegate.lineWidth != lineWidth;
   }
 }
 
@@ -2942,7 +2635,7 @@ class _GoldenTicket extends StatelessWidget {
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
     );
-
+    
     const ticketGradient = LinearGradient(
       colors: [
         Color(0xFFFFF5CC), // Light cream
@@ -2952,7 +2645,7 @@ class _GoldenTicket extends StatelessWidget {
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
     );
-
+    
     const sheen = LinearGradient(
       colors: [Color(0x66FFFFFF), Color(0x00FFFFFF)],
       begin: Alignment.topLeft,
@@ -2971,21 +2664,17 @@ class _GoldenTicket extends StatelessWidget {
     const double baseLabelFont = 8;
     const double baseSerialFont = 8;
     const double baseHorizontalGap = 6;
-    const double baseVerticalGap =
-        4; // Increased from 2 to provide more spacing
+    const double baseVerticalGap = 4; // Increased from 2 to provide more spacing
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final double desiredWidth = baseWidth * lengthFactor * baseScale;
-        final double maxWidth = constraints.maxWidth.isFinite
-            ? constraints.maxWidth
-            : desiredWidth;
+        final double maxWidth = constraints.maxWidth.isFinite ? constraints.maxWidth : desiredWidth;
         final double scaleFactor = desiredWidth > 0
             ? baseScale * min(1.0, maxWidth / desiredWidth)
             : baseScale;
 
-        final double width = (baseWidth * lengthFactor * scaleFactor)
-            .ceilToDouble();
+        final double width = (baseWidth * lengthFactor * scaleFactor).ceilToDouble();
         final double height = (baseHeight * scaleFactor).ceilToDouble();
         final double cornerR = baseCornerRadius * scaleFactor;
         final double notchR = baseNotchRadius * scaleFactor;
@@ -2999,8 +2688,7 @@ class _GoldenTicket extends StatelessWidget {
         final double serialLetterSpacing = max(0.4, 1 * scaleFactor);
         final double horizontalGap = max(3.0, baseHorizontalGap * scaleFactor);
         final double verticalGap = max(1.0, baseVerticalGap * scaleFactor);
-        final double perforationOffset =
-            basePerforationOffset * scaleFactor * lengthFactor;
+        final double perforationOffset = basePerforationOffset * scaleFactor * lengthFactor;
         final double perforationWidth = max(1.0, 2 * scaleFactor);
         final Offset shadowOffset = Offset(1 * scaleFactor, 1 * scaleFactor);
         final String ticketLabel = score == 1 ? 'TICKET' : 'TICKETS';
@@ -3015,10 +2703,7 @@ class _GoldenTicket extends StatelessWidget {
               Transform.translate(
                 offset: Offset(0, 2 * scaleFactor),
                 child: ClipPath(
-                  clipper: _TicketClipper(
-                    cornerRadius: cornerR,
-                    notchRadius: notchR,
-                  ),
+                  clipper: _TicketClipper(cornerRadius: cornerR, notchRadius: notchR),
                   child: Container(
                     width: width,
                     height: height,
@@ -3029,19 +2714,20 @@ class _GoldenTicket extends StatelessWidget {
 
               // Ticket shape with gradient
               ClipPath(
-                clipper: _TicketClipper(
-                  cornerRadius: cornerR,
-                  notchRadius: notchR,
-                ),
+                clipper: _TicketClipper(cornerRadius: cornerR, notchRadius: notchR),
                 child: Container(
                   width: width,
                   height: height,
-                  decoration: const BoxDecoration(gradient: ticketGradient),
+                  decoration: const BoxDecoration(
+                    gradient: ticketGradient,
+                  ),
                   child: Stack(
                     children: [
                       // Vintage pattern background
                       Positioned.fill(
-                        child: CustomPaint(painter: _TicketPatternPainter()),
+                        child: CustomPaint(
+                          painter: _TicketPatternPainter(),
+                        ),
                       ),
 
                       // Content
@@ -3154,12 +2840,11 @@ class _GoldenTicket extends StatelessWidget {
               Positioned.fill(
                 child: IgnorePointer(
                   child: ClipPath(
-                    clipper: _TicketClipper(
-                      cornerRadius: cornerR,
-                      notchRadius: notchR,
-                    ),
+                    clipper: _TicketClipper(cornerRadius: cornerR, notchRadius: notchR),
                     child: Container(
-                      decoration: const BoxDecoration(gradient: sheen),
+                      decoration: const BoxDecoration(
+                        gradient: sheen,
+                      ),
                     ),
                   ),
                 ),
@@ -3183,12 +2868,12 @@ class _TicketClipper extends CustomClipper<Path> {
     final nr = notchRadius;
     final w = size.width;
     final h = size.height;
-
+    
     final path = Path();
-
+    
     // Start at top-left corner after radius
     path.moveTo(r, 0);
-
+    
     // Top edge with scalloped pattern
     const scallops = 8;
     final scW = (w - 2 * r) / scallops;
@@ -3198,26 +2883,26 @@ class _TicketClipper extends CustomClipper<Path> {
       final x3 = x1 + scW;
       path.quadraticBezierTo(x2, -2, x3, 0);
     }
-
+    
     // Top-right corner
     path.arcToPoint(Offset(w, r), radius: Radius.circular(r));
-
+    
     // Right edge down to notch start
     path.lineTo(w, h / 2 - nr);
-
+    
     // Right notch (larger semi-circle inward)
     path.arcToPoint(
       Offset(w, h / 2 + nr),
       radius: Radius.circular(nr),
       clockwise: false,
     );
-
+    
     // Right edge to bottom-right corner
     path.lineTo(w, h - r);
-
+    
     // Bottom-right corner
     path.arcToPoint(Offset(w - r, h), radius: Radius.circular(r));
-
+    
     // Bottom edge with scalloped pattern
     for (int i = scallops - 1; i >= 0; i--) {
       final x1 = r + (i + 1) * scW;
@@ -3225,34 +2910,33 @@ class _TicketClipper extends CustomClipper<Path> {
       final x3 = x1 - scW;
       path.quadraticBezierTo(x2, h + 2, x3, h);
     }
-
+    
     // Bottom-left corner
     path.arcToPoint(Offset(0, h - r), radius: Radius.circular(r));
-
+    
     // Left edge up to notch start
     path.lineTo(0, h / 2 + nr);
-
+    
     // Left notch
     path.arcToPoint(
       Offset(0, h / 2 - nr),
       radius: Radius.circular(nr),
       clockwise: false,
     );
-
+    
     // Left edge to top-left corner
     path.lineTo(0, r);
-
+    
     // Top-left corner
     path.arcToPoint(Offset(r, 0), radius: Radius.circular(r));
-
+    
     path.close();
     return path;
   }
 
   @override
   bool shouldReclip(covariant _TicketClipper oldClipper) {
-    return oldClipper.cornerRadius != cornerRadius ||
-        oldClipper.notchRadius != notchRadius;
+    return oldClipper.cornerRadius != cornerRadius || oldClipper.notchRadius != notchRadius;
   }
 }
 
@@ -3270,10 +2954,7 @@ class _TicketBorderPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final path = _TicketClipper(
-      cornerRadius: cornerRadius,
-      notchRadius: notchRadius,
-    ).getClip(size);
+    final path = _TicketClipper(cornerRadius: cornerRadius, notchRadius: notchRadius).getClip(size);
     final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth
@@ -3298,7 +2979,7 @@ class _TicketPatternPainter extends CustomPainter {
       ..color = Colors.brown.withOpacity(0.05)
       ..strokeWidth = 1
       ..style = PaintingStyle.stroke;
-
+    
     // Draw subtle diagonal lines for vintage texture
     const spacing = 4.0;
     for (double i = -size.height; i < size.width + size.height; i += spacing) {
@@ -3321,13 +3002,17 @@ class _PerforatedLinePainter extends CustomPainter {
     final paint = Paint()
       ..color = Colors.brown.withOpacity(0.3)
       ..strokeWidth = 1;
-
+    
     const dashHeight = 3.0;
     const dashSpace = 2.0;
     double y = 0;
-
+    
     while (y < size.height) {
-      canvas.drawLine(Offset(0, y), Offset(0, y + dashHeight), paint);
+      canvas.drawLine(
+        Offset(0, y),
+        Offset(0, y + dashHeight),
+        paint,
+      );
       y += dashHeight + dashSpace;
     }
   }
@@ -3421,12 +3106,7 @@ class _FilmstripPainter extends CustomPainter {
       // Bottom perforations
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-          Rect.fromLTWH(
-            x - holeWidth / 2,
-            size.height - holeHeight - 1,
-            holeWidth,
-            holeHeight,
-          ),
+          Rect.fromLTWH(x - holeWidth / 2, size.height - holeHeight - 1, holeWidth, holeHeight),
           const Radius.circular(1),
         ),
         paint,
