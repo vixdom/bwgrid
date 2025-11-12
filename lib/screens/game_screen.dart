@@ -845,9 +845,6 @@ class _GameScreenState extends State<GameScreen>
     // Success: apply puzzle grid and initialize selection controller
     final newGrid = puzzle.grid;
     final targetWords = chosen.map((c) => c.answer.toUpperCase()).toSet();
-    for (var r = 0; r < 4; r++) {
-      debugPrint('Grid row $r -> ${newGrid[r]}');
-    }
     setState(() {
       grid = newGrid;
       _sel = SelectionController(
