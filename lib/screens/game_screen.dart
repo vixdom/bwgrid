@@ -2221,6 +2221,11 @@ class _GameScreenState extends State<GameScreen>
                                                 fit: StackFit.expand,
                                                 clipBehavior: Clip.none,
                                                 children: [
+                                                  // Background for the entire grid
+                                                  Container(
+                                                    color: surface,
+                                                  ),
+                                                  // Grid cells with transparent backgrounds
                                                   RepaintBoundary(
                                                     child: GridView.builder(
                                                       physics: const NeverScrollableScrollPhysics(),
@@ -2248,7 +2253,7 @@ class _GameScreenState extends State<GameScreen>
                                                           child: Container(
                                                             margin: const EdgeInsets.all(2.5),
                                                             decoration: BoxDecoration(
-                                                              color: surface,
+                                                              color: Colors.transparent,  // Transparent so film reel shows through
                                                               borderRadius: BorderRadius.circular(inSelected || inFound ? 10 : 8),
                                                             ),
                                                             child: Align(
