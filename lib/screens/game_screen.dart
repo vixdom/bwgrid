@@ -845,6 +845,15 @@ class _GameScreenState extends State<GameScreen>
     // Success: apply puzzle grid and initialize selection controller
     final newGrid = puzzle.grid;
     final targetWords = chosen.map((c) => c.answer.toUpperCase()).toSet();
+    
+    // Debug: Check what's actually in the grid
+    debugPrint('🔍 Grid check - first 4 rows:');
+    for (var r = 0; r < 4; r++) {
+      final rowContent = newGrid[r].join('');
+      final isEmpty = rowContent.replaceAll(' ', '').isEmpty;
+      debugPrint('  Row $r: "${newGrid[r].join(' ')}" (empty: $isEmpty)');
+    }
+    
     setState(() {
       grid = newGrid;
       _sel = SelectionController(
@@ -2233,9 +2242,13 @@ class _GameScreenState extends State<GameScreen>
                                                   RepaintBoundary(
                                                     child: GridView.builder(
                                                       physics: const NeverScrollableScrollPhysics(),
+                                                      padding: EdgeInsets.zero,
+                                                      shrinkWrap: true,  // Ensure grid doesn't take extra space
                                                       itemCount: gridSize * gridSize,
                                                       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                                                         crossAxisCount: gridSize,
+                                                        mainAxisSpacing: 0,  // No spacing between rows
+                                                        crossAxisSpacing: 0,  // No spacing between columns
                                                       ),
                                                       itemBuilder: (context, index) {
                                                         final row = index ~/ gridSize;
@@ -2246,6 +2259,7 @@ class _GameScreenState extends State<GameScreen>
                                                         final inFound = _isInFoundPaths(cellOffset, sc);
                                                         final tile = boardSize / gridSize;
                                                         final fontSize = ((tile * 0.55).clamp(14.0, isWide ? 48.0 : 36.0)) * 1.0;
+                                                        
                                                         return AnimatedScale(
                                                           duration: const Duration(milliseconds: 100),
                                                           scale: inSelected ? 1.08 : 1.0,
