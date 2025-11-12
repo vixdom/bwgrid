@@ -2221,24 +2221,6 @@ class _GameScreenState extends State<GameScreen>
                                                 fit: StackFit.expand,
                                                 clipBehavior: Clip.none,
                                                 children: [
-                                                  IgnorePointer(
-                                                    child: RepaintBoundary(
-                                                      child: CustomPaint(
-                                                        painter: FilmReelPainter(
-                                                          cellSize: boardSize / gridSize,
-                                                          found: _sel!.found,
-                                                          activePath: _sel!.activePath,
-                                                          activeColor: _sel!.activeColor,
-                                                          surfaceColor: Colors.transparent,
-                                                          debug: false,
-                                                          repaint: Listenable.merge([
-                                                            _sel!,
-                                                            ..._sel!.found.map((fp) => fp.progress),
-                                                          ]),
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
                                                   RepaintBoundary(
                                                     child: GridView.builder(
                                                       physics: const NeverScrollableScrollPhysics(),
@@ -2276,13 +2258,32 @@ class _GameScreenState extends State<GameScreen>
                                                                   style: TextStyle(
                                                                     fontSize: fontSize,
                                                                     fontWeight: FontWeight.normal,
-                                                                    color: (inSelected || inFound) ? Colors.white : onSurface,
+                                                                    color: onSurface,  // Always use theme color (black in light theme, white in dark)
                                                                   ),
                                                                 ),
                                                               ),
                                                           ),
                                                         );
                                                       },
+                                                    ),
+                                                  ),
+                                                  // Film reel overlay ABOVE the grid cells
+                                                  IgnorePointer(
+                                                    child: RepaintBoundary(
+                                                      child: CustomPaint(
+                                                        painter: FilmReelPainter(
+                                                          cellSize: boardSize / gridSize,
+                                                          found: _sel!.found,
+                                                          activePath: _sel!.activePath,
+                                                          activeColor: _sel!.activeColor,
+                                                          surfaceColor: Colors.transparent,
+                                                          debug: false,
+                                                          repaint: Listenable.merge([
+                                                            _sel!,
+                                                            ..._sel!.found.map((fp) => fp.progress),
+                                                          ]),
+                                                        ),
+                                                      ),
                                                     ),
                                                   ),
                                                   // Grid overlay with horizontal and vertical lines
