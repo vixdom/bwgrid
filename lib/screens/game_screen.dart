@@ -18,6 +18,7 @@ import '../models/feedback_settings.dart';
 import '../services/animation_manager.dart';
 import '../models/stage_scene.dart';
 import '../services/game_persistence.dart';
+import '../services/rating_service.dart';
 import '../constants/app_themes.dart';
 
 enum _SecretCorner { topRight, bottomRight, bottomLeft, topLeft }
@@ -168,6 +169,7 @@ class _GameScreenState extends State<GameScreen>
   int _autoCompleteTapCount = 0;
   bool _autoCompleting = false;
   final GamePersistence _gamePersistence = const GamePersistence();
+  final RatingService _ratingService = RatingService();
   bool _showProgressPath = false;
   bool _screenWasSelected = false;
   bool _hasShownHintReminder = false;
@@ -1046,6 +1048,12 @@ class _GameScreenState extends State<GameScreen>
       // Finished all scenes in this stage, advance to next stage
       final isLastStage = (_currentStageIndex + 1) >= _allStages.length;
       debugPrint('🎬 Is final scene - isLastStage=$isLastStage');
+      
+      // Mark screen as completed for rating tracking (1-indexed for user-facing numbers)
+      final completedScreenNumber = _stageDefinition.index;
+      await _ratingService.markScreenCompleted(completedScreenNumber);
+      debugPrint('⭐ Marked screen $completedScreenNumber as completed for rating');
+      
       if (isLastStage) {
         debugPrint('🎬 Game complete! Looping back to first stage');
         setState(() {
@@ -1062,6 +1070,15 @@ class _GameScreenState extends State<GameScreen>
       
       // Initialize the new stage before showing progress path
       await _initializeStage();
+      
+      // Check if we should show rating prompt (after screens 1, 2, or 3)
+      if (completedScreenNumber <= 3 && mounted) {
+        final shouldShow = await _ratingService.shouldShowRatingPrompt();
+        if (shouldShow && mounted) {
+          debugPrint('⭐ Showing rating dialog after completing screen $completedScreenNumber');
+          await _ratingService.showRatingDialog(context);
+        }
+      }
       
       // Show progress path when changing stages
       // (_initializeStage already set _showProgressPath = true)
