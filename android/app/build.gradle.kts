@@ -36,8 +36,8 @@ android {
         // Align with pubspec.yaml if properties are provided by Flutter tooling
         val flutterVersionCode = project.findProperty("flutter.versionCode")?.toString()?.toIntOrNull()
         val flutterVersionName = project.findProperty("flutter.versionName")?.toString()
-    versionCode = flutterVersionCode ?: 2
-        versionName = flutterVersionName ?: "2.1.0"
+        versionCode = flutterVersionCode ?: 3
+        versionName = flutterVersionName ?: "2.3.0"
         multiDexEnabled = true
     }
 

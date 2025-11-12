@@ -215,8 +215,8 @@ class RatingService {
   /// Open the app store page
   Future<void> _openStorePage() async {
     // Replace with your actual App Store and Play Store IDs
-    const String appStoreId = 'YOUR_APP_STORE_ID'; // e.g., '123456789'
-    const String playStoreId = 'YOUR_PACKAGE_NAME'; // e.g., 'com.example.bwgrid'
+    const String appStoreId = '6751748862'; // Provided Apple App Store ID
+    const String playStoreId = 'com.moviemasala.wordsearch'; // Android applicationId
     
     try {
       // For iOS
