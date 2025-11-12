@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'dart:async';
+import 'dart:ui';
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -10,12 +11,14 @@ import '../services/game_controller.dart';
 import '../services/interstitial_ad_manager.dart';
 import '../controllers/selection_controller.dart';
 import '../widgets/film_reel_painter.dart';
+import '../widgets/glass_surface.dart';
 import '../widgets/progress_path_screen.dart';
 import '../services/theme_dictionary.dart';
 import '../models/feedback_settings.dart';
 import '../services/animation_manager.dart';
 import '../models/stage_scene.dart';
 import '../services/game_persistence.dart';
+import '../constants/app_themes.dart';
 
 enum _SecretCorner { topRight, bottomRight, bottomLeft, topLeft }
 
@@ -166,6 +169,7 @@ class _GameScreenState extends State<GameScreen>
   bool _autoCompleting = false;
   final GamePersistence _gamePersistence = const GamePersistence();
   bool _showProgressPath = false;
+  bool _screenWasSelected = false;
   bool _hasShownHintReminder = false;
   bool _dangerHapticTriggered = false;
 
@@ -841,6 +845,9 @@ class _GameScreenState extends State<GameScreen>
     // Success: apply puzzle grid and initialize selection controller
     final newGrid = puzzle.grid;
     final targetWords = chosen.map((c) => c.answer.toUpperCase()).toSet();
+    for (var r = 0; r < 4; r++) {
+      debugPrint('Grid row $r -> ${newGrid[r]}');
+    }
     setState(() {
       grid = newGrid;
       _sel = SelectionController(
@@ -1075,8 +1082,13 @@ class _GameScreenState extends State<GameScreen>
       _showProgressPath = false;
     });
     
-    // Only load puzzle if it hasn't been loaded yet (grid is null)
-    if (grid == null) {
+    // If we reach the game screen without an active grid, start the next puzzle now
+    final needsPuzzle = grid == null;
+
+    // Reset the flag before potentially loading to avoid double-triggering elsewhere
+    _screenWasSelected = false;
+
+    if (needsPuzzle) {
       await _loadPuzzle();
     }
     
@@ -1089,6 +1101,9 @@ class _GameScreenState extends State<GameScreen>
   Future<void> _onScreenSelected(int stageIndex) async {
     // User selected a completed screen to replay from scene 1
     debugPrint('🎬 _onScreenSelected: stageIndex=$stageIndex (before update: current=$_currentStageIndex, scene=$_currentSceneIndex)');
+    
+    // Mark that a screen was selected
+    _screenWasSelected = true;
     
     // Clear any saved game state to ensure fresh start
     await _gamePersistence.clear();
@@ -1460,72 +1475,102 @@ class _GameScreenState extends State<GameScreen>
     int index,
     SelectionController? controller,
     bool isWide,
-    Color surface,
+    bool isDark,
     Color outline,
     Color onSurface,
   ) {
     final sc = controller;
     final answer = clue.answer.toUpperCase();
-  final isFound = sc != null && sc.found.any((f) => f.word == answer);
-  final color = sc?.wordColors[answer];
-  final hasPurchased = _revealedClues.contains(answer);
-  final isRevealed = !_isHiddenScene || hasPurchased || isFound;
-  final canReveal = _isHiddenScene && !hasPurchased && !isFound && _sceneActive && !_timeExpired;
-  final displayLabel = _isHiddenScene
-    ? (isFound
-      ? clue.label
-      : hasPurchased
-        ? _firstLetterHint(clue)
-        : clue.answer.length.toString())
-    : clue.label;
+    final theme = Theme.of(context);
+    final isFound = sc != null && sc.found.any((f) => f.word == answer);
+    final color = sc?.wordColors[answer];
+    final hasPurchased = _revealedClues.contains(answer);
+    final isRevealed = !_isHiddenScene || hasPurchased || isFound;
+    final canReveal = _isHiddenScene && !hasPurchased && !isFound && _sceneActive && !_timeExpired;
+    final displayLabel = _isHiddenScene
+        ? (isFound
+            ? clue.label
+            : hasPurchased
+                ? _firstLetterHint(clue)
+                : clue.answer.length.toString())
+        : clue.label;
+
     final textColor = isFound
         ? Colors.white
-        : (isRevealed ? onSurface : Theme.of(context).colorScheme.primary);
-    final backgroundColor = isFound && color != null ? color : surface;
-    final borderColor = color ?? outline;
+        : (isRevealed ? theme.colorScheme.onSurface : theme.colorScheme.primary);
 
-    return InkWell(
-      borderRadius: BorderRadius.circular(7),
-      onTap: !canReveal
-          ? null
-          : () {
-              setState(() {
-                _revealedClues.add(answer);
-              });
-              final gc = context.read<GameController>();
-              unawaited(gc.feedback.playClue());
-              _schedulePersistGameState();
-            },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        padding: const EdgeInsets.symmetric(
-          vertical: 2.5,
-          horizontal: 4.5,
-        ),
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: BorderRadius.circular(7),
-          border: Border.all(
-            color: borderColor,
-            width: 1,
-          ),
-          boxShadow: isFound
-              ? [
-                  BoxShadow(
-                    color: (color ?? Colors.black).withValues(alpha: 0.3),
-                    blurRadius: 8,
-                    spreadRadius: 0,
-                  ),
-                ]
-              : null,
-        ),
-        child: Text(
-          displayLabel,
-          style: TextStyle(
-            fontSize: (isWide ? 14 : 11) * 1.05,
-            fontWeight: FontWeight.w700,
-            color: textColor,
-            decoration: isFound ? TextDecoration.lineThrough : TextDecoration.none,
+    final Color glassBorder = Colors.white.withAlpha(isDark ? 100 : 160);
+    final BorderRadius chipRadius = BorderRadius.circular(20);
+    final LinearGradient glassGradient = LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        Colors.white.withAlpha(isDark ? 80 : 220),
+        Colors.white.withAlpha(isDark ? 48 : 170),
+      ],
+    );
+
+    final Color foundBase = (color ?? theme.colorScheme.secondary).withAlpha(230);
+    final Color foundBorder = (color ?? outline).withAlpha(200);
+
+    return ClipRRect(
+      borderRadius: chipRadius,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: chipRadius,
+            onTap: !canReveal
+                ? null
+                : () {
+                    setState(() {
+                      _revealedClues.add(answer);
+                    });
+                    final gc = context.read<GameController>();
+                    unawaited(gc.feedback.playClue());
+                    _schedulePersistGameState();
+                  },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              padding: EdgeInsets.symmetric(
+                vertical: isWide ? 8 : 7,
+                horizontal: isWide ? 14 : 12,
+              ),
+              decoration: BoxDecoration(
+                gradient: isFound ? null : glassGradient,
+                color: isFound ? foundBase : null,
+                borderRadius: chipRadius,
+                border: Border.all(
+                  color: isFound ? foundBorder : glassBorder,
+                  width: 1.2,
+                ),
+                boxShadow: isFound
+                    ? [
+                        BoxShadow(
+                          color: (color ?? Colors.black).withOpacity(0.25),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ]
+                    : [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(isDark ? 0.18 : 0.12),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+              ),
+              child: Text(
+                displayLabel,
+                style: TextStyle(
+                  fontSize: (isWide ? 14 : 11) * 1.05,
+                  fontWeight: FontWeight.w700,
+                  color: textColor,
+                  decoration: isFound ? TextDecoration.lineThrough : TextDecoration.none,
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -1788,10 +1833,15 @@ class _GameScreenState extends State<GameScreen>
     final outline = Theme.of(context).colorScheme.outline;
     final width = MediaQuery.of(context).size.width;
     final isWide = width >= 900; // tablet breakpoint
+    final settings = context.watch<FeedbackSettings>();
+    final isDark = settings.theme == AppTheme.kashyap;
 
   return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         automaticallyImplyLeading: false,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         leading: AnimatedRotation(
           duration: const Duration(milliseconds: 300),
           turns: 0.0, // Can animate on press if needed
@@ -1811,29 +1861,48 @@ class _GameScreenState extends State<GameScreen>
             builder: (context, score, child) {
               final settings = context.watch<FeedbackSettings>();
               final canUseHints = settings.hintsEnabled && score >= 20 && _sel != null && _sceneActive && !_timeExpired;
-              return FloatingActionButton.small(
-                onPressed: !canUseHints
-                    ? null
-                    : () {
-                        if (_sel == null) return;
-                        if (score < 15) return;
-                        final sc = _sel!;
-                        final remaining = sc.remainingWords;
-                        if (remaining.isEmpty) return;
-                        final list = remaining.toList()..shuffle();
-                        final word = list.first;
-                        final start = sc.findWordStart(word);
-                        if (start != null) {
-                          _changeScore(-15, allowHintReminder: false);
-                          sc.showHintAt(start, durationMs: 1000);
-                          _schedulePersistGameState();
-                        }
-                      },
-                tooltip: canUseHints
-                    ? 'Hint (-15 tickets)'
-                    : 'Hints unlock at 20 tickets',
-                child: const Icon(Icons.question_mark),
-                backgroundColor: canUseHints ? Colors.amber : Colors.grey,
+              final theme = Theme.of(context);
+              final Color buttonColor = canUseHints
+                  ? theme.colorScheme.secondary
+                  : theme.colorScheme.surfaceVariant;
+              final Color iconColor = canUseHints
+                  ? theme.colorScheme.onSecondary
+                  : theme.colorScheme.onSurface.withAlpha(150);
+
+              return Padding(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: Material(
+                  color: buttonColor,
+                  borderRadius: BorderRadius.circular(20),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: !canUseHints
+                        ? null
+                        : () {
+                            if (_sel == null) return;
+                            if (score < 15) return;
+                            final sc = _sel!;
+                            final remaining = sc.remainingWords;
+                            if (remaining.isEmpty) return;
+                            final list = remaining.toList()..shuffle();
+                            final word = list.first;
+                            final start = sc.findWordStart(word);
+                            if (start != null) {
+                              _changeScore(-15, allowHintReminder: false);
+                              sc.showHintAt(start, durationMs: 1000);
+                              _schedulePersistGameState();
+                            }
+                          },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: Icon(
+                        Icons.question_mark,
+                        size: 20,
+                        color: iconColor,
+                      ),
+                    ),
+                  ),
+                ),
               );
             },
           ),
@@ -1845,62 +1914,116 @@ class _GameScreenState extends State<GameScreen>
         child: Stack(
           fit: StackFit.expand,
           children: [
+            // Background image extending behind app bar
+            Positioned.fill(
+              child: Image.asset(
+                isDark ? 'assets/Options_Dark.png' : 'assets/Options_Light.png',
+                fit: BoxFit.cover,
+              ),
+            ),
+            // Subtle backdrop blur for depth
+            BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+              child: Container(
+                color: Colors.black.withAlpha(13),
+              ),
+            ),
             Column(
               children: [
-                // Theme name bar
-                Container(
-                width: double.infinity,
-                color: Theme.of(context).colorScheme.primaryContainer,
-                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    LayoutBuilder(
-                      builder: (context, constraints) {
-                        return ConstrainedBox(
-                          constraints: BoxConstraints(maxWidth: constraints.maxWidth),
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.center,
-                            child: Text(
-                              _sceneHeaderLabel,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
-                                color: Theme.of(context).colorScheme.onPrimaryContainer,
-                              ),
-                              textAlign: TextAlign.center,
+                // Theme name bar styled as glass surface
+                Padding(
+                  padding: EdgeInsets.only(
+                    top: MediaQuery.of(context).padding.top + (isWide ? 76 : 68),
+                  ),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: GlassSurface(
+                      blurAmount: 20,
+                      borderRadius: BorderRadius.zero,
+                      backgroundGradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.white.withAlpha(isDark ? 38 : 140),
+                          Colors.white.withAlpha(isDark ? 22 : 105),
+                        ],
+                      ),
+                      borderColor: Colors.white.withAlpha(isDark ? 64 : 120),
+                      elevationColor: isDark
+                          ? Colors.black.withOpacity(0.20)
+                          : Colors.black.withOpacity(0.12),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            LayoutBuilder(
+                              builder: (context, constraints) {
+                                return ConstrainedBox(
+                                  constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      _sceneHeaderLabel,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w700,
+                                        color: Theme.of(context).colorScheme.onSurface,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
-                          ),
-                        );
-                      },
+                            if (_isTimedScene && _remainingSeconds != null) ...[
+                              const SizedBox(height: 8),
+                              _buildTimerDisplay(context),
+                              const SizedBox(height: 10),
+                              _buildLitFuse(context),
+                            ],
+                          ],
+                        ),
+                      ),
                     ),
-                    if (_isTimedScene && _remainingSeconds != null) ...[
-                      const SizedBox(height: 6),
-                      _buildTimerDisplay(context),
-                      const SizedBox(height: 8),
-                      _buildLitFuse(context),
-                    ],
-                  ],
-        ),
-            ),
-                // Key box with chips
-                Container(
-                  width: double.infinity,
-              color: surface,
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  // Rebuild the clue chips whenever selection/found state changes
-                  if (_sel != null)
-                    AnimatedBuilder(
-                      animation: _sel!,
-                      builder: (context, _) {
-                        final sc = _sel;
-                        return Wrap(
+                  ),
+                ),
+                // Key box with chips - transparent layout
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // Rebuild the clue chips whenever selection/found state changes
+                      if (_sel != null)
+                        AnimatedBuilder(
+                          animation: _sel!,
+                          builder: (context, _) {
+                            final sc = _sel;
+                            return Wrap(
+                              alignment: WrapAlignment.center,
+                              spacing: 6,
+                              runSpacing: 2,
+                              children: _clues.asMap().entries.map((entry) {
+                                return _buildClueChip(
+                                  context,
+                                  entry.value,
+                                  entry.key,
+                                  sc,
+                                  isWide,
+                                  isDark,
+                                  outline,
+                                  onSurface,
+                                );
+                              }).toList(),
+                            );
+                          },
+                        )
+                      else
+                        Wrap(
                           alignment: WrapAlignment.center,
                           spacing: 6,
                           runSpacing: 2,
@@ -1909,36 +2032,16 @@ class _GameScreenState extends State<GameScreen>
                               context,
                               entry.value,
                               entry.key,
-                              sc,
+                              null,
                               isWide,
-                              surface,
+                              isDark,
                               outline,
                               onSurface,
                             );
                           }).toList(),
-                        );
-                      },
-                    )
-                  else
-                    Wrap(
-                      alignment: WrapAlignment.center,
-                      spacing: 6,
-                      runSpacing: 2,
-                      children: _clues.asMap().entries.map((entry) {
-                        return _buildClueChip(
-                          context,
-                          entry.value,
-                          entry.key,
-                          null,
-                          isWide,
-                          surface,
-                          outline,
-                          onSurface,
-                        );
-                      }).toList(),
-                    ),
-                ],
-              ),
+                        ),
+                    ],
+                  ),
                 ),
                 // Selection preview listens directly to SelectionController changes
                 if (_sel != null)
@@ -2053,219 +2156,240 @@ class _GameScreenState extends State<GameScreen>
                   )
                 else
                   const SizedBox(height: 35),
-                const SizedBox(height: 8),
-                Expanded(
-              child: Center(
-                child: AspectRatio(
-                  aspectRatio: 1,
-                  child: LayoutBuilder(
-                    builder: (context, inner) {
-                      if (_sel == null || grid == null) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      
-                      // Calculate urgency level for visual effects
-                      final urgencyLevel = _isTimedScene && _remainingSeconds != null 
-                          ? _getUrgencyLevel(_remainingSeconds!)
-                          : 0;
-                      
-                      // Listen directly to SelectionController so grid and painter update on drag
-                      return AnimatedBuilder(
-                        animation: _sel!,
-                        builder: (context, __) {
-                          return Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              // Urgency glow effect
-                              if (urgencyLevel > 0)
-                                Positioned.fill(
-                                  child: _buildUrgencyGlowEffect(urgencyLevel),
-                                ),
-                              Center(
-                                child: Container(
-                                  margin: const EdgeInsets.all(12),
+                const SizedBox(height: 16),
+                // Grid container - uses LayoutBuilder to size based on available width
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    // Calculate grid size based on screen width with padding
+                    final availableWidth = constraints.maxWidth - 32; // 16px padding on each side
+                    final calculatedGridSize = availableWidth.clamp(280.0, 500.0);
+                    
+                    return Center(
+                      child: SizedBox(
+                        width: calculatedGridSize,
+                        height: calculatedGridSize,
+                        child: AspectRatio(
+                      aspectRatio: 1,
+                      child: LayoutBuilder(
+                        builder: (context, inner) {
+                          if (_sel == null || grid == null) {
+                            return const Center(child: CircularProgressIndicator());
+                          }
+                          
+                          // Calculate urgency level for visual effects
+                          final urgencyLevel = _isTimedScene && _remainingSeconds != null 
+                              ? _getUrgencyLevel(_remainingSeconds!)
+                              : 0;
+                          
+                          // Listen directly to SelectionController so grid and painter update on drag
+                          return AnimatedBuilder(
+                            animation: _sel!,
+                            builder: (context, __) {
+                              return Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  // Urgency glow effect
+                                  if (urgencyLevel > 0)
+                                    Positioned.fill(
+                                      child: _buildUrgencyGlowEffect(urgencyLevel),
+                                    ),
+                                  Align(
+                                    alignment: Alignment.center,
+                                    child: Container(
+                                      margin: const EdgeInsets.all(12),
                                       decoration: const BoxDecoration(),
-                                  clipBehavior: Clip.none,
-                                  child: LayoutBuilder(
-                                    builder: (context, inner2) {
-                                      return GestureDetector(
-                                        onPanStart: (d) => _onGridPanStart(d, inner2),
-                                        onPanUpdate: (d) => _onGridPanUpdate(d, inner2),
-                                        onPanEnd: _onPanEnd,
-                                        child: Stack(
-                                          fit: StackFit.expand,
-                                          clipBehavior: Clip.none,
-                                          children: [
-                                            IgnorePointer(
-                                              child: RepaintBoundary(
-                                                child: CustomPaint(
-                                                  painter: FilmReelPainter(
-                                                    cellSize: inner2.maxWidth / gridSize,
-                                                    found: _sel!.found,
-                                                    activePath: _sel!.activePath,
-                                                    activeColor: _sel!.activeColor,
-                                                    surfaceColor: surface,
-                                                    debug: false,
-                                                    repaint: Listenable.merge([
-                                                      _sel!,
-                                                      ..._sel!.found.map((fp) => fp.progress),
-                                                    ]),
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                            RepaintBoundary(
-                                              child: GridView.builder(
-                                                physics: const NeverScrollableScrollPhysics(),
-                                                itemCount: gridSize * gridSize,
-                                                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                                  crossAxisCount: gridSize,
-                                                ),
-                                                itemBuilder: (context, index) {
-                                                  final row = index ~/ gridSize;
-                                                  final col = index % gridSize;
-                                                  final sc = _sel!;
-                                                  final cellOffset = Offset(row.toDouble(), col.toDouble());
-                                                  final inSelected = sc.activePath.contains(cellOffset);
-                                                  final inFound = _isInFoundPaths(cellOffset, sc);
-                                                  final tile = inner2.maxWidth / gridSize;
-                                                  final fontSize = ((tile * 0.55).clamp(14.0, isWide ? 48.0 : 36.0)) * 1.0;
-                                                  return AnimatedScale(
-                                                    duration: const Duration(milliseconds: 100),
-                                                    scale: inSelected ? 1.08 : 1.0,
-                                                    child: Container(
-                                                      margin: const EdgeInsets.all(2.5),
-                                                      decoration: BoxDecoration(
-                                                        color: Colors.transparent,
-                                                        borderRadius: BorderRadius.circular(inSelected || inFound ? 10 : 8),
-                                                      ),
-                                                      child: Center(
-                                                        child: Text(
-                                                          grid![row][col],
-                                                          style: TextStyle(
-                                                            fontSize: fontSize,
-                                                            fontWeight: FontWeight.normal,
-                                                            color: (inSelected || inFound) ? Colors.white : onSurface,
-                                                          ),
+                                      clipBehavior: Clip.none,
+                                      child: LayoutBuilder(
+                                        builder: (context, inner2) {
+                                          final boardSize = inner2.biggest.shortestSide;
+                                          final gridConstraints = BoxConstraints.tight(Size.square(boardSize));
+                                          
+                                          return SizedBox(
+                                            width: boardSize,
+                                            height: boardSize,
+                                            child: GestureDetector(
+                                              onPanStart: (d) => _onGridPanStart(d, gridConstraints),
+                                              onPanUpdate: (d) => _onGridPanUpdate(d, gridConstraints),
+                                              onPanEnd: _onPanEnd,
+                                              child: Stack(
+                                                fit: StackFit.expand,
+                                                clipBehavior: Clip.none,
+                                                children: [
+                                                  IgnorePointer(
+                                                    child: RepaintBoundary(
+                                                      child: CustomPaint(
+                                                        painter: FilmReelPainter(
+                                                          cellSize: boardSize / gridSize,
+                                                          found: _sel!.found,
+                                                          activePath: _sel!.activePath,
+                                                          activeColor: _sel!.activeColor,
+                                                          surfaceColor: Colors.transparent,
+                                                          debug: false,
+                                                          repaint: Listenable.merge([
+                                                            _sel!,
+                                                            ..._sel!.found.map((fp) => fp.progress),
+                                                          ]),
                                                         ),
                                                       ),
                                                     ),
-                                                  );
-                                                },
+                                                  ),
+                                                  RepaintBoundary(
+                                                    child: GridView.builder(
+                                                      physics: const NeverScrollableScrollPhysics(),
+                                                      itemCount: gridSize * gridSize,
+                                                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                                        crossAxisCount: gridSize,
+                                                      ),
+                                                      itemBuilder: (context, index) {
+                                                        final row = index ~/ gridSize;
+                                                        final col = index % gridSize;
+                                                        final sc = _sel!;
+                                                        final cellOffset = Offset(row.toDouble(), col.toDouble());
+                                                        final inSelected = sc.activePath.contains(cellOffset);
+                                                        final inFound = _isInFoundPaths(cellOffset, sc);
+                                                        final tile = boardSize / gridSize;
+                                                        final fontSize = ((tile * 0.55).clamp(14.0, isWide ? 48.0 : 36.0)) * 1.0;
+                                                        return AnimatedScale(
+                                                          duration: const Duration(milliseconds: 100),
+                                                          scale: inSelected ? 1.08 : 1.0,
+                                                          child: Container(
+                                                            margin: const EdgeInsets.all(2.5),
+                                                            decoration: BoxDecoration(
+                                                              color: surface,
+                                                              borderRadius: BorderRadius.circular(inSelected || inFound ? 10 : 8),
+                                                            ),
+                                                            child: Align(
+                                                                alignment: const Alignment(0.0, 0.0),
+                                                                child: Text(
+                                                                  grid![row][col],
+                                                                  style: TextStyle(
+                                                                    fontSize: fontSize,
+                                                                    fontWeight: FontWeight.normal,
+                                                                    color: (inSelected || inFound) ? Colors.white : onSurface,
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                          ),
+                                                        );
+                                                      },
+                                                    ),
+                                                  ),
+                                                  // Grid overlay with horizontal and vertical lines
+                                                  RepaintBoundary(
+                                                    child: CustomPaint(
+                                                      painter: _GridPainter(
+                                                        gridSize: gridSize,
+                                                        cellSize: boardSize / gridSize,
+                                                        lineColor: Colors.grey.withOpacity(0.4),
+                                                        lineWidth: 1.0,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
                                             ),
-                                            // Grid overlay with horizontal and vertical lines
-                                            RepaintBoundary(
-                                              child: CustomPaint(
-                                                painter: _GridPainter(
-                                                  gridSize: gridSize,
-                                                  cellSize: inner2.maxWidth / gridSize,
-                                                  lineColor: Colors.grey.withOpacity(0.4),
-                                                  lineWidth: 1.0,
-                                                ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                  _showConfetti ? OptimizedConfettiLayer(
+                                    particles: _confetti,
+                                    animation: _confettiAnimation,
+                                  ) : const SizedBox.shrink(),
+                                  if (_timeExpired)
+                                    Positioned.fill(
+                                      child: Container(
+                                        color: Colors.black.withOpacity(0.45),
+                                        alignment: Alignment.center,
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Text(
+                                              "Time's up!",
+                                              style: TextStyle(
+                                                fontSize: 22,
+                                                fontWeight: FontWeight.w800,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 12),
+                                            FilledButton.icon(
+                                              onPressed: _startingNewPuzzle ? null : _restartScene,
+                                              icon: const Icon(Icons.refresh),
+                                              label: Text(_startingNewPuzzle ? 'Loading…' : 'Retry scene'),
+                                              style: FilledButton.styleFrom(
+                                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                                                textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                                                backgroundColor: Theme.of(context).colorScheme.errorContainer,
+                                                foregroundColor: Theme.of(context).colorScheme.onErrorContainer,
+                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                               ),
                                             ),
                                           ],
                                         ),
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ),
-                              _showConfetti ? OptimizedConfettiLayer(
-                                particles: _confetti,
-                                animation: _confettiAnimation,
-                              ) : const SizedBox.shrink(),
-                              if (_timeExpired)
-                                Positioned.fill(
-                                  child: Container(
-                                    color: Colors.black.withOpacity(0.45),
-                                    alignment: Alignment.center,
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Text(
-                                          "Time's up!",
-                                          style: TextStyle(
-                                            fontSize: 22,
-                                            fontWeight: FontWeight.w800,
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 12),
-                                        FilledButton.icon(
-                                          onPressed: _startingNewPuzzle ? null : _restartScene,
-                                          icon: const Icon(Icons.refresh),
-                                          label: Text(_startingNewPuzzle ? 'Loading…' : 'Retry scene'),
-                                          style: FilledButton.styleFrom(
-                                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                                            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                                            backgroundColor: Theme.of(context).colorScheme.errorContainer,
-                                            foregroundColor: Theme.of(context).colorScheme.onErrorContainer,
-                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                )
-                              else if (_sel?.isComplete == true)
-                                Positioned.fill(
-                                  child: Container(
-                                    color: Colors.black.withOpacity(0.55),
-                                    alignment: Alignment.center,
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        if (_isFinalScene && (_currentStageIndex + 1) >= _allStages.length) ...[
-                                          const Text(
-                                            'All screens complete! 🎉',
-                                            style: TextStyle(
-                                              fontSize: 20,
-                                              fontWeight: FontWeight.w800,
-                                              color: Colors.white,
+                                      ),
+                                    )
+                                  else if (_sel?.isComplete == true)
+                                    Positioned.fill(
+                                      child: Container(
+                                        color: Colors.black.withOpacity(0.55),
+                                        alignment: Alignment.center,
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            if (_isFinalScene && (_currentStageIndex + 1) >= _allStages.length) ...[
+                                              const Text(
+                                                'All screens complete! 🎉',
+                                                style: TextStyle(
+                                                  fontSize: 20,
+                                                  fontWeight: FontWeight.w800,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 12),
+                                            ] else
+                                              const SizedBox(height: 8),
+                                            FilledButton.icon(
+                                              onPressed: _startingNewPuzzle ? null : _advanceScene,
+                                              icon: Icon(
+                                                (_isFinalScene && (_currentStageIndex + 1) >= _allStages.length)
+                                                    ? Icons.replay
+                                                    : Icons.arrow_forward,
+                                              ),
+                                              label: Text(
+                                                _startingNewPuzzle
+                                                    ? 'Loading…'
+                                                    : (_isFinalScene
+                                                        ? ((_currentStageIndex + 1) >= _allStages.length
+                                                            ? 'Play again'
+                                                            : 'Next screen')
+                                                        : 'Next scene'),
+                                              ),
+                                              style: FilledButton.styleFrom(
+                                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                                                textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                                                backgroundColor: Theme.of(context).colorScheme.primary,
+                                                foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                              ),
                                             ),
-                                          ),
-                                          const SizedBox(height: 12),
-                                        ] else
-                                          const SizedBox(height: 8),
-                                        FilledButton.icon(
-                                          onPressed: _startingNewPuzzle ? null : _advanceScene,
-                                          icon: Icon(
-                                            (_isFinalScene && (_currentStageIndex + 1) >= _allStages.length)
-                                                ? Icons.replay
-                                                : Icons.arrow_forward,
-                                          ),
-                                          label: Text(
-                                            _startingNewPuzzle
-                                                ? 'Loading…'
-                                                : (_isFinalScene
-                                                    ? ((_currentStageIndex + 1) >= _allStages.length
-                                                        ? 'Play again'
-                                                        : 'Next screen')
-                                                    : 'Next scene'),
-                                          ),
-                                          style: FilledButton.styleFrom(
-                                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                                            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                                            backgroundColor: Theme.of(context).colorScheme.primary,
-                                            foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                          ),
+                                          ],
                                         ),
-                                      ],
+                                      ),
                                     ),
-                                  ),
-                                ),
-                            ],
+                                ],
+                              );
+                            },
                           );
                         },
-                      );
-                    },
-                  ),
+                      ),
+                        ),
+                      ),
+                    );
+                  },
                 ),
-              ),
-                ),
+                const Spacer(), // Push banner ad to bottom
                 if (_isBannerAdLoaded && _bannerAd != null)
                   SafeArea(
                     top: false,

@@ -94,9 +94,11 @@ class _ProgressPathScreenState extends State<ProgressPathScreen>
     if (_controller.isAnimating) return;
     await _controller.reverse();
     if (mounted) {
+      // If a stage was selected, trigger the callback
       if (selectedStageIndex != null && widget.onScreenSelected != null) {
         widget.onScreenSelected!(selectedStageIndex);
       }
+      // Always call onComplete to dismiss the screen
       widget.onComplete();
     }
   }
@@ -150,37 +152,6 @@ class _ProgressPathScreenState extends State<ProgressPathScreen>
                       },
                     ),
                   ),
-                  
-                  // Play button at bottom
-                  if (_showDetails)
-                    Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: FilledButton.icon(
-                          onPressed: _dismissScreen,
-                          icon: const Icon(Icons.play_arrow, size: 28),
-                          label: Text(
-                            'Play Screen ${widget.currentStageIndex + 1}',
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          style: FilledButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 32,
-                              vertical: 20,
-                            ),
-                            backgroundColor: Theme.of(context).colorScheme.primary,
-                            foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
                 ],
               ),
             ),

@@ -83,11 +83,11 @@ class FilmReelPainter extends CustomPainter {
 
     // Shadow layers (straight ends)
     final shadow1 = Paint()
-      ..color = Colors.black.withOpacity(0.18)
+      ..color = Colors.black.withOpacity(0.09)
       ..style = PaintingStyle.fill
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6.0);
     final shadow2 = Paint()
-      ..color = Colors.black.withOpacity(0.10)
+      ..color = Colors.black.withOpacity(0.05)
       ..style = PaintingStyle.fill
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12.0);
 
@@ -97,20 +97,20 @@ class FilmReelPainter extends CustomPainter {
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [
-          baseColor.withOpacity(isActive ? 0.90 : 0.80),
-          baseColor.withOpacity(isActive ? 0.70 : 0.60),
+          baseColor.withOpacity(isActive ? 0.45 : 0.40),
+          baseColor.withOpacity(isActive ? 0.35 : 0.30),
         ],
       ).createShader(rect);
 
     // Inner highlight line
     final innerLine = Paint()
-      ..color = Colors.white.withOpacity(0.15)
+      ..color = Colors.white.withOpacity(0.075)
       ..style = PaintingStyle.stroke
       ..strokeWidth = math.max(1.0, stripHeight * 0.04);
 
     // Border
     final border = Paint()
-      ..color = Colors.black.withOpacity(0.22)
+      ..color = Colors.black.withOpacity(0.11)
       ..style = PaintingStyle.stroke
       ..strokeWidth = math.max(1.0, stripHeight * 0.03);
 
@@ -135,11 +135,11 @@ class FilmReelPainter extends CustomPainter {
 
     // Frame dividers at exact cell boundaries
     final dividerCore = Paint()
-      ..color = Colors.black.withOpacity(0.35)
+      ..color = Colors.black.withOpacity(0.175)
       ..strokeWidth = math.max(2.0, stripHeight * 0.08)
       ..strokeCap = StrokeCap.butt;
     final dividerHighlight = Paint()
-      ..color = Colors.white.withOpacity(0.16)
+      ..color = Colors.white.withOpacity(0.08)
       ..strokeWidth = math.max(1.0, stripHeight * 0.035)
       ..strokeCap = StrokeCap.butt;
     for (int i = 1; i < frameCount; i++) {
@@ -152,10 +152,10 @@ class FilmReelPainter extends CustomPainter {
 
     // Perforations along both long edges
     final perfPaint = Paint()
-      ..color = Colors.black.withOpacity(0.40)
+      ..color = Colors.black.withOpacity(0.20)
       ..style = PaintingStyle.fill;
     final perfShadow = Paint()
-      ..color = Colors.black.withOpacity(0.18)
+      ..color = Colors.black.withOpacity(0.09)
       ..style = PaintingStyle.fill
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.2);
     final perfW = stripHeight * 0.10;
@@ -176,7 +176,7 @@ class FilmReelPainter extends CustomPainter {
     // Subtle grain within strip bounds
     final random = math.Random(42);
     final grain = Paint()
-      ..color = Colors.white.withOpacity(0.05)
+      ..color = Colors.white.withOpacity(0.025)
       ..style = PaintingStyle.fill;
     final grains = (stripLength * stripHeight / 2200).round().clamp(10, 60);
     for (int i = 0; i < grains; i++) {
@@ -189,7 +189,7 @@ class FilmReelPainter extends CustomPainter {
     // Active glow
     if (isActive) {
       final glow = Paint()
-        ..color = baseColor.withOpacity(0.18)
+        ..color = baseColor.withOpacity(0.09)
         ..style = PaintingStyle.stroke
         ..strokeWidth = stripHeight * 0.28
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6.0);
@@ -232,8 +232,8 @@ class FilmReelPainter extends CustomPainter {
   void _drawStripBackground(Canvas canvas, Path stripPath, double stripWidth, Color baseColor, bool isActive) {
     // Multi-layer shadow for depth
     final shadowLayers = [
-      (offset: const Offset(0, 2), blur: 3.0, alpha: 0.2),
-      (offset: const Offset(0, 4), blur: 6.0, alpha: 0.1),
+      (offset: const Offset(0, 2), blur: 3.0, alpha: 0.1),
+      (offset: const Offset(0, 4), blur: 6.0, alpha: 0.05),
     ];
 
     for (final layer in shadowLayers) {
@@ -261,9 +261,9 @@ class FilmReelPainter extends CustomPainter {
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [
-          baseColor.withOpacity(isActive ? 0.85 : 0.75),
-          baseColor.withOpacity(isActive ? 0.7 : 0.6),
-          baseColor.withOpacity(isActive ? 0.8 : 0.7),
+          baseColor.withOpacity(isActive ? 0.425 : 0.375),
+          baseColor.withOpacity(isActive ? 0.35 : 0.30),
+          baseColor.withOpacity(isActive ? 0.40 : 0.35),
         ],
         stops: const [0.0, 0.5, 1.0],
       ).createShader(Rect.fromLTWH(0, 0, stripWidth, stripWidth));
@@ -276,7 +276,7 @@ class FilmReelPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
       ..strokeWidth = stripWidth * 0.6
-      ..color = Colors.white.withOpacity(0.15);
+      ..color = Colors.white.withOpacity(0.075);
 
     canvas.drawPath(stripPath, highlightPaint);
 
@@ -287,7 +287,7 @@ class FilmReelPainter extends CustomPainter {
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round
         ..strokeWidth = stripWidth * 1.3
-        ..color = baseColor.withOpacity(0.2)
+        ..color = baseColor.withOpacity(0.10)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.0);
 
       canvas.drawPath(stripPath, glowPaint);
@@ -297,13 +297,13 @@ class FilmReelPainter extends CustomPainter {
   void _drawFrameDividers(Canvas canvas, List<Offset> points, double stripWidth, Color baseColor) {
     // Two-pass divider: dark core + subtle highlight to mimic bevel
     final dividerCore = Paint()
-      ..color = Colors.black.withOpacity(0.35)
+      ..color = Colors.black.withOpacity(0.175)
       ..strokeWidth = math.max(2.0, stripWidth * 0.08)
       ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.stroke;
 
     final dividerHighlight = Paint()
-      ..color = Colors.white.withOpacity(0.18)
+      ..color = Colors.white.withOpacity(0.09)
       ..strokeWidth = math.max(1.0, stripWidth * 0.035)
       ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.stroke;
@@ -339,20 +339,20 @@ class FilmReelPainter extends CustomPainter {
     }
   }
 
-  /// Draw per-letter “aperture” rectangles on the strip so frames are obvious
+  /// Draw per-letter "aperture" rectangles on the strip so frames are obvious
   void _drawFrameApertures(Canvas canvas, List<Offset> points, double stripWidth, Color baseColor) {
     // Aperture is a rounded-rect centered at each letter, rotated along the local direction
     final fill = Paint()
-      ..color = Colors.black.withOpacity(0.10)
+      ..color = Colors.black.withOpacity(0.05)
       ..style = PaintingStyle.fill;
 
     final border = Paint()
-      ..color = Colors.black.withOpacity(0.35)
+      ..color = Colors.black.withOpacity(0.175)
       ..style = PaintingStyle.stroke
       ..strokeWidth = math.max(1.0, stripWidth * 0.035);
 
     final innerHighlight = Paint()
-      ..color = Colors.white.withOpacity(0.10)
+      ..color = Colors.white.withOpacity(0.05)
       ..style = PaintingStyle.stroke
       ..strokeWidth = math.max(0.8, stripWidth * 0.02);
 
@@ -409,11 +409,11 @@ class FilmReelPainter extends CustomPainter {
 
   void _drawContinuousPerforations(Canvas canvas, Path stripPath, double stripWidth) {
     final perfPaint = Paint()
-      ..color = Colors.black.withOpacity(0.4)
+      ..color = Colors.black.withOpacity(0.20)
       ..style = PaintingStyle.fill;
 
     final shadowPaint = Paint()
-      ..color = Colors.black.withOpacity(0.15)
+      ..color = Colors.black.withOpacity(0.075)
       ..style = PaintingStyle.fill
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.0);
 
@@ -463,7 +463,7 @@ class FilmReelPainter extends CustomPainter {
     // Add subtle film grain
     final random = math.Random(42);
     final grainPaint = Paint()
-      ..color = Colors.white.withOpacity(0.05)
+      ..color = Colors.white.withOpacity(0.025)
       ..style = PaintingStyle.fill;
 
     final bounds = stripPath.getBounds();
@@ -505,7 +505,7 @@ class FilmReelPainter extends CustomPainter {
 
   void _drawFrameShadow(Canvas canvas, Rect frameRect) {
     final shadowPaint = Paint()
-      ..color = Colors.black.withOpacity(0.3)
+      ..color = Colors.black.withOpacity(0.15)
       ..style = PaintingStyle.fill
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.0);
 
@@ -528,9 +528,9 @@ class FilmReelPainter extends CustomPainter {
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [
-          baseColor.withOpacity(isActive ? 0.8 : 0.7),
-          baseColor.withOpacity(isActive ? 0.6 : 0.5),
-          baseColor.withOpacity(isActive ? 0.7 : 0.6),
+          baseColor.withOpacity(isActive ? 0.40 : 0.35),
+          baseColor.withOpacity(isActive ? 0.30 : 0.25),
+          baseColor.withOpacity(isActive ? 0.35 : 0.30),
         ],
         stops: const [0.0, 0.5, 1.0],
       ).createShader(frameRect);
@@ -542,7 +542,7 @@ class FilmReelPainter extends CustomPainter {
 
     // Add subtle inner highlight
     final highlightPaint = Paint()
-      ..color = Colors.white.withOpacity(0.2)
+      ..color = Colors.white.withOpacity(0.10)
       ..style = PaintingStyle.fill;
 
     final highlightRect = Rect.fromCenter(
@@ -560,11 +560,11 @@ class FilmReelPainter extends CustomPainter {
   void _drawFramePerforations(Canvas canvas, Rect frameRect, Color baseColor) {
     final perfSize = frameRect.width * 0.08;
     final perfPaint = Paint()
-      ..color = Colors.black.withOpacity(0.4)
+      ..color = Colors.black.withOpacity(0.20)
       ..style = PaintingStyle.fill;
 
     final shadowPaint = Paint()
-      ..color = Colors.black.withOpacity(0.2)
+      ..color = Colors.black.withOpacity(0.10)
       ..style = PaintingStyle.fill
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.0);
 
@@ -617,7 +617,7 @@ class FilmReelPainter extends CustomPainter {
 
   void _drawFrameBorder(Canvas canvas, Rect frameRect, Color baseColor, bool isActive) {
     final borderPaint = Paint()
-      ..color = baseColor.withOpacity(isActive ? 0.9 : 0.8)
+      ..color = baseColor.withOpacity(isActive ? 0.45 : 0.40)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.0;
 
@@ -629,7 +629,7 @@ class FilmReelPainter extends CustomPainter {
     // Add subtle outer glow for active frames
     if (isActive) {
       final glowPaint = Paint()
-        ..color = baseColor.withOpacity(0.3)
+        ..color = baseColor.withOpacity(0.15)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 4.0
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0);

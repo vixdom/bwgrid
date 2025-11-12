@@ -365,6 +365,41 @@ class _OptionsScreenState extends State<OptionsScreen> {
 
                             const SizedBox(height: 16),
 
+                            // Progress section
+                            BwSectionCard(
+                              title: 'Progress',
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  FilledButton.icon(
+                                    onPressed: _resetAllProgress,
+                                    icon: const Icon(Icons.restart_alt),
+                                    label: const Text('Reset all progress'),
+                                    style: FilledButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 14,
+                                      ),
+                                      backgroundColor:
+                                          theme.colorScheme.errorContainer,
+                                      foregroundColor:
+                                          theme.colorScheme.onErrorContainer,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Opacity(
+                                    opacity: 0.8,
+                                    child: Text(
+                                      'Clears unlocked screens, achievements, and saved games.',
+                                      style: theme.textTheme.bodySmall,
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            const SizedBox(height: 16),
+
                             // Ad and version widgets
                             if (_isAdLoaded && _bannerAd != null) ...[
                               const SizedBox(height: 16),
