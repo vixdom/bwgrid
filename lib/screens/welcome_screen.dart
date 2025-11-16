@@ -4,6 +4,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:glassmorphism/glassmorphism.dart';
 
 import 'game_screen.dart' as game;
+import '../services/cheat_service.dart';
 
 // Quick-tweak config
 const bool kShowReel = false; // disabled for clean design
@@ -73,10 +74,14 @@ class WelcomeScreen extends StatelessWidget {
                         },
                       ),
                       const SizedBox(height: 16),
-                      const _SecondaryButton(
+                      _SecondaryButton(
                         label: 'Daily Challenge',
                         icon: Icons.flash_on,
                         showComingSoon: true,
+                        onDisabledTap: () {
+                          // Register a tap towards the cheat sequence
+                          CheatService.instance.registerDailyTap(context);
+                        },
                       ),
                       const SizedBox(height: 16),
                       _SecondaryButton(
@@ -174,11 +179,13 @@ class _SecondaryButton extends StatelessWidget {
     required this.icon,
     this.onTap,
     this.showComingSoon = false,
+    this.onDisabledTap,
   });
   final String label;
   final IconData icon;
   final VoidCallback? onTap;
   final bool showComingSoon;
+  final VoidCallback? onDisabledTap;
 
   @override
   Widget build(BuildContext context) {
@@ -195,7 +202,7 @@ class _SecondaryButton extends StatelessWidget {
         shadowColor: Colors.black.withValues(alpha: 0.35),
         child: InkWell(
           borderRadius: borderRadius,
-          onTap: onTap,
+          onTap: onTap ?? onDisabledTap,
           child: Ink(
             decoration: BoxDecoration(
               borderRadius: borderRadius,

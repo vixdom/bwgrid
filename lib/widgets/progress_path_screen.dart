@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../models/stage_scene.dart';
 import '../models/feedback_settings.dart';
 import '../constants/app_themes.dart';
+import '../services/game_persistence.dart';
 import '../widgets/glass_surface.dart';
 
 /// Displays the player's progress through all screens/stages
@@ -36,6 +37,7 @@ class _ProgressPathScreenState extends State<ProgressPathScreen>
   late Animation<double> _fadeAnimation;
   bool _showDetails = false;
   late final List<GlobalKey> _cardKeys;
+  bool _allUnlocked = false;
 
   @override
   void didUpdateWidget(covariant ProgressPathScreen oldWidget) {
@@ -71,6 +73,11 @@ class _ProgressPathScreenState extends State<ProgressPathScreen>
         });
       }
     });
+    // Load unlock flag
+    () async {
+      final unlocked = await const GamePersistence().isAllScreensUnlocked();
+      if (mounted) setState(() => _allUnlocked = unlocked);
+    }();
   }
 
   void _scrollToCurrentStage() {
@@ -168,7 +175,7 @@ class _ProgressPathScreenState extends State<ProgressPathScreen>
     final isPast = index < widget.currentStageIndex;
     final isCurrent = index == widget.currentStageIndex;
     final isFuture = index > widget.currentStageIndex;
-    final isClickable = isPast || isCurrent; // Can click completed or current screen
+  final isClickable = isPast || isCurrent || (_allUnlocked && isFuture); // Can click completed or current screen (or all if unlocked)
     
     // Calculate completed scenes for this stage
     int completedScenes = 0;
@@ -334,11 +341,17 @@ class _ProgressPathScreenState extends State<ProgressPathScreen>
                   
                   // Lock icon for future screens or replay icon for completed
                   if (isFuture)
-                    const Icon(
-                      Icons.lock_outline,
-                      color: Colors.grey,
-                      size: 28,
-                    )
+                    (_allUnlocked
+                        ? const Icon(
+                            Icons.lock_open,
+                            color: Colors.green,
+                            size: 28,
+                          )
+                        : const Icon(
+                            Icons.lock_outline,
+                            color: Colors.grey,
+                            size: 28,
+                          ))
                   else if (isPast)
                     Icon(
                       Icons.replay,

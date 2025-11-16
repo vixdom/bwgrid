@@ -128,6 +128,7 @@ class SavedGameState {
 class GamePersistence {
   const GamePersistence();
   static const _kSavedGameKey = 'bwgrid_saved_game_v1';
+  static const _kAllUnlockedKey = 'bwgrid_all_unlocked_v1';
 
   Future<void> save(SavedGameState state) async {
     final prefs = await SharedPreferences.getInstance();
@@ -151,5 +152,16 @@ class GamePersistence {
   Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_kSavedGameKey);
+    await prefs.remove(_kAllUnlockedKey);
+  }
+
+  Future<void> setAllScreensUnlocked(bool unlocked) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kAllUnlockedKey, unlocked);
+  }
+
+  Future<bool> isAllScreensUnlocked() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_kAllUnlockedKey) ?? false;
   }
 }
