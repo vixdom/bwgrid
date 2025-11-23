@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 
 /// Optimized animation manager that reduces overhead and improves performance
 /// by efficiently managing animation controllers and reducing unnecessary computations.
@@ -75,7 +74,7 @@ class AnimationManager {
 
   /// Get an optimized tween with caching
   Tween<double> getTween(double begin, double end, {String? id}) {
-    final tweenId = id ?? '${begin}_${end}';
+    final tweenId = id ?? '${begin}_$end';
     
     if (_tweenCache.containsKey(tweenId)) {
       return _tweenCache[tweenId]!;
@@ -200,8 +199,6 @@ class AnimationManager {
 /// Optimized confetti system that reduces animation overhead
 class OptimizedConfetti {
   static const int _maxParticles = 20; // Reduced from 28 for better performance
-  static const Duration _animationDuration = Duration(milliseconds: 2000);
-  
   /// Create optimized confetti particles with reduced computational overhead
   static List<ConfettiParticle> createParticles(Size screenSize) {
     final random = math.Random();

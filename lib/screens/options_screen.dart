@@ -64,12 +64,16 @@ class _OptionsScreenState extends State<OptionsScreen> {
     if (confirmed == true && mounted) {
       try {
         // Clear saved game state (this will force restart from Screen 1, Scene 1)
-        const gamePersistence = GamePersistence();
-        await gamePersistence.clear();
+  const gamePersistence = GamePersistence();
+  await gamePersistence.clear(resetUnlocks: true);
+
+  if (!mounted) return;
 
         // Reset achievements
         final achievements = context.read<AchievementsService>();
         await achievements.resetAllAchievements();
+
+        if (!mounted) return;
 
         // Reset settings to defaults
         final settings = context.read<FeedbackSettings>();
@@ -541,7 +545,6 @@ class _GlassSurface extends StatelessWidget {
     this.backgroundGradient,
     this.borderColor,
     this.elevationColor,
-    this.blurAmount = 16,
   });
 
   final Widget child;
@@ -549,7 +552,6 @@ class _GlassSurface extends StatelessWidget {
   final Gradient? backgroundGradient;
   final Color? borderColor;
   final Color? elevationColor;
-  final double blurAmount;
 
   @override
   Widget build(BuildContext context) {
@@ -569,7 +571,7 @@ class _GlassSurface extends StatelessWidget {
       child: ClipRRect(
         borderRadius: borderRadius ?? BorderRadius.zero,
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: blurAmount, sigmaY: blurAmount),
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
           child: Container(
             decoration: BoxDecoration(
               gradient: backgroundGradient,
@@ -615,11 +617,11 @@ class _SettingTile extends StatelessWidget {
   const _SettingTile.disabled({
     super.key,
     required this.title,
-    this.subtitle,
     this.trailingPill,
     required this.iconOn,
     required this.iconOff,
-  }) : value = false,
+  }) : subtitle = null,
+       value = false,
        onChanged = null,
        _disabled = true;
 

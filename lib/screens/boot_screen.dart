@@ -65,6 +65,8 @@ class _BootScreenState extends State<BootScreen> {
     // Initialize app services
     await _initializeApp();
 
+    if (!mounted) return;
+
     debugPrint('[Boot] Navigating to /welcome');
     // Navigate directly to the Home screen
     Navigator.of(context).pushReplacementNamed('/welcome');
@@ -77,12 +79,16 @@ class _BootScreenState extends State<BootScreen> {
       final feedbackController = context.read<FeedbackController>();
       await feedbackController.init();
 
+      if (!mounted) return;
+
       debugPrint('[Boot] Connecting services...');
       // Initialize achievements service
       final achievementsService = context.read<AchievementsService>();
       if (!achievementsService.isSignedIn) {
         await achievementsService.signIn();
       }
+
+      if (!mounted) return;
 
       // Start background preloading of non-critical assets
       debugPrint('[Boot] Starting background asset preloading...');

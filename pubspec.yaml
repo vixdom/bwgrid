@@ -27,13 +27,13 @@ dependencies:
   shimmer: ^3.0.0
   animated_text_kit: ^4.2.2
   in_app_review: ^2.0.9
+  flutter_native_splash: ^2.4.1      # Runtime access for splash preservation
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.13.1   # 👈 Added for app icon generation
-  flutter_native_splash: ^2.4.1      # 👈 For true native splash screen
 
 flutter_icons:                      # 👈 Configuration for flutter_launcher_icons
   android: true

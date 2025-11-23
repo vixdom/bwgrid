@@ -127,7 +127,6 @@ class _GameScreenState extends State<GameScreen>
   static const Duration _autoCompleteResetDelay = Duration(seconds: 6);
   List<List<String>>? grid;
   SelectionController? _sel;
-  bool _showConfetti = false;
   List<ConfettiParticle> _confetti = const [];
   late AnimationController _confettiController;
   late Animation<double> _confettiAnimation;
@@ -158,6 +157,8 @@ class _GameScreenState extends State<GameScreen>
   bool _timeExpired = false;
   bool _sceneActive = false;
   int _metronomeBeat = 0;
+  bool _scrollLocked = false;
+  late final ScrollController _gameScrollController;
   bool _showClapboard = false;
   String _clapboardLabel = '';
   String _clapboardSubtitle = '';
@@ -171,7 +172,6 @@ class _GameScreenState extends State<GameScreen>
   final GamePersistence _gamePersistence = const GamePersistence();
   final RatingService _ratingService = RatingService();
   bool _showProgressPath = false;
-  bool _screenWasSelected = false;
   bool _hasShownHintReminder = false;
   bool _dangerHapticTriggered = false;
 
@@ -180,6 +180,7 @@ class _GameScreenState extends State<GameScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _showProgressPath = widget.forceShowProgressPath;
+    _gameScrollController = ScrollController();
     // Initialize ValueNotifiers
     _scoreNotifier = ValueNotifier<int>(0);
     _hintUnlockedNotifier = ValueNotifier<bool>(false);
@@ -201,7 +202,8 @@ class _GameScreenState extends State<GameScreen>
       id: 'confetti_progress',
     );
     
-    unawaited(_restoreOrInitializeStage());
+  // Restore or initialize game state with built-in stage order
+  unawaited(_restoreOrInitializeStage());
     // Load banner ad on both Android and iOS
     final adUnitId = Platform.isAndroid ? AdsConfig.androidBanner : AdsConfig.iosBanner;
     _bannerAd = BannerAd(
@@ -227,15 +229,20 @@ class _GameScreenState extends State<GameScreen>
   InterstitialAdManager.instance.load(adUnitId: interstitialUnit);
   }
 
+  // (CSV ordering is now baked into StagePlaybook; no dynamic order at runtime)
+
   // Grid-local gesture mapping using inner constraints
   void _onGridPanStart(DragStartDetails details, BoxConstraints inner) {
-    if (_sel == null || !_sceneActive || _timeExpired) return;
+    if (_sel == null || !_sceneActive || _timeExpired) {
+      return;
+    }
     final cell = inner.maxWidth / gridSize;
     final col = (details.localPosition.dx / cell).floor();
     final row = (details.localPosition.dy / cell).floor();
     if (row >= 0 && row < gridSize && col >= 0 && col < gridSize) {
       _handleAutoCompleteTap(row, col);
       if (_autoCompleting) {
+        _setScrollLocked(false);
         return;
       }
       setState(() {
@@ -283,13 +290,17 @@ class _GameScreenState extends State<GameScreen>
         unawaited(gc.feedback.playClue());
       }
       // ignore: use_build_context_synchronously
+      // ignore: deprecated_member_use
       SemanticsService.announce(
         'Found ${found.word}. ${_sel?.found.length ?? 0} of 10 words.',
         TextDirection.ltr,
       );
       if (_sel?.isComplete == true) {
         _resetAutoCompleteSequence();
-        await _cancelSceneTimer(resumeBackground: true);
+        await _cancelSceneTimer(
+          resumeBackground: true,
+          controllerOverride: gc,
+        );
         setState(() {
           _sceneActive = false;
         });
@@ -302,6 +313,22 @@ class _GameScreenState extends State<GameScreen>
     } else if (wasActive && prevLen >= 2) {
       await gc.onInvalid();
     }
+    _setScrollLocked(false);
+  }
+
+  void _handleGridPanDown() {
+    if (_sel == null || !_sceneActive || _timeExpired) {
+      _setScrollLocked(false);
+      return;
+    }
+    _setScrollLocked(true);
+  }
+
+  void _setScrollLocked(bool locked) {
+    if (_scrollLocked == locked) return;
+    setState(() {
+      _scrollLocked = locked;
+    });
   }
 
   bool _isInFoundPaths(Offset cell, SelectionController sc) {
@@ -586,7 +613,10 @@ class _GameScreenState extends State<GameScreen>
         return;
       }
 
-      await _cancelSceneTimer(resumeBackground: true);
+      await _cancelSceneTimer(
+        resumeBackground: true,
+        controllerOverride: gc,
+      );
       if (!mounted) return;
       setState(() {
         _sceneActive = false;
@@ -739,6 +769,10 @@ class _GameScreenState extends State<GameScreen>
 
     debugPrint('Selected words: ${chosen.map((c) => '${c.answer}(${c.answer.length})').join(', ')}');
 
+    if (!mounted) {
+      return;
+    }
+
     // Reset celebration flag so fireworks can play again
     final gc = context.read<GameController>();
     gc.resetCelebration();
@@ -765,7 +799,13 @@ class _GameScreenState extends State<GameScreen>
       _dangerHapticTriggered = false;
     });
 
-    await _cancelSceneTimer(resumeBackground: !_isTimedScene);
+    await _cancelSceneTimer(
+      resumeBackground: !_isTimedScene,
+      controllerOverride: gc,
+    );
+    if (!mounted) {
+      return;
+    }
     if (_isTimedScene && _currentScene.timeLimit != null) {
       debugPrint('🎬 Starting timer for timed scene: ${_currentScene.title}');
       await _startSceneTimer(_currentScene.timeLimit!);
@@ -871,16 +911,35 @@ class _GameScreenState extends State<GameScreen>
     _schedulePersistGameState();
   }
 
-  Future<void> _cancelSceneTimer({bool resumeBackground = false}) async {
+  Future<void> _cancelSceneTimer({
+    bool resumeBackground = false,
+    GameController? controllerOverride,
+  }) async {
     _sceneTimer?.cancel();
     _sceneTimer = null;
     // Stop countdown music when timer is cancelled
-    final gc = context.read<GameController>();
-    await gc.feedback.stopCountdownMusic(resumeBackground: resumeBackground);
+    final gc = controllerOverride;
+    if (gc != null) {
+      await gc.feedback.stopCountdownMusic(resumeBackground: resumeBackground);
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    final controller = context.read<GameController>();
+    await controller.feedback
+        .stopCountdownMusic(resumeBackground: resumeBackground);
   }
 
   Future<void> _startSceneTimer(Duration limit) async {
-    await _cancelSceneTimer(resumeBackground: false);
+    if (!mounted) return;
+    final gc = context.read<GameController>();
+    await _cancelSceneTimer(
+      resumeBackground: false,
+      controllerOverride: gc,
+    );
     final totalSeconds = limit.inSeconds;
     if (totalSeconds <= 0) {
       setState(() {
@@ -895,7 +954,6 @@ class _GameScreenState extends State<GameScreen>
     });
     
     // Start countdown music for timed scenes
-    final gc = context.read<GameController>();
     debugPrint('🎬 Starting countdown music for scene: ${_currentScene.title}');
     await gc.feedback.startCountdownMusic();
     
@@ -1006,14 +1064,17 @@ class _GameScreenState extends State<GameScreen>
 
   void _handleTimeExpired() {
     if (_timeExpired) return;
-    unawaited(_cancelSceneTimer(resumeBackground: true));
+    final gc = mounted ? context.read<GameController>() : null;
+    unawaited(_cancelSceneTimer(
+      resumeBackground: true,
+      controllerOverride: gc,
+    ));
+    if (!mounted) return;
     setState(() {
       _timeExpired = true;
       _sceneActive = false;
     });
-    if (!mounted) return;
-    final gc = context.read<GameController>();
-    unawaited(gc.onInvalid());
+    unawaited(gc?.onInvalid());
     _schedulePersistGameState(immediate: true);
   }
 
@@ -1100,21 +1161,28 @@ class _GameScreenState extends State<GameScreen>
     });
   }
   
-  Future<void> _onProgressPathComplete() async {
+  Future<void> _onProgressPathComplete(bool resumeGameplay) async {
+    if (!mounted) return;
+
+    if (!resumeGameplay) {
+      setState(() {
+        _showProgressPath = false;
+        _startingNewPuzzle = false;
+      });
+      await Navigator.of(context).maybePop();
+      return;
+    }
+
     setState(() {
       _showProgressPath = false;
     });
-    
-    // If we reach the game screen without an active grid, start the next puzzle now
-    final needsPuzzle = grid == null;
 
-    // Reset the flag before potentially loading to avoid double-triggering elsewhere
-    _screenWasSelected = false;
+  final needsPuzzle = grid == null;
 
     if (needsPuzzle) {
       await _loadPuzzle();
     }
-    
+
     if (!mounted) return;
     setState(() {
       _startingNewPuzzle = false;
@@ -1124,9 +1192,6 @@ class _GameScreenState extends State<GameScreen>
   Future<void> _onScreenSelected(int stageIndex) async {
     // User selected a completed screen to replay from scene 1
     debugPrint('🎬 _onScreenSelected: stageIndex=$stageIndex (before update: current=$_currentStageIndex, scene=$_currentSceneIndex)');
-    
-    // Mark that a screen was selected
-    _screenWasSelected = true;
     
     // Clear any saved game state to ensure fresh start
     await _gamePersistence.clear();
@@ -1253,84 +1318,6 @@ class _GameScreenState extends State<GameScreen>
     );
   }
 
-  /// Build "lit fuse" progress bar
-  Widget _buildLitFuse(BuildContext context) {
-    final remaining = _remainingSeconds!.clamp(0, 5999).toInt();
-    final total = _sceneDurationSeconds ?? 90;
-    final progress = remaining / total;
-    
-    // Color transitions for the fuse
-    final Color fuseColor;
-    if (progress > 0.5) {
-      fuseColor = Color.lerp(Colors.orange.shade400, Colors.orange.shade300, (progress - 0.5) * 2)!;
-    } else if (progress > 0.2) {
-      fuseColor = Color.lerp(Colors.deepOrange.shade500, Colors.orange.shade400, (progress - 0.2) / 0.3)!;
-    } else {
-      fuseColor = Color.lerp(Colors.red.shade600, Colors.deepOrange.shade500, progress / 0.2)!;
-    }
-    
-    return Container(
-      height: 6,
-      margin: const EdgeInsets.symmetric(horizontal: 24),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade800.withOpacity(0.3),
-        borderRadius: BorderRadius.circular(3),
-      ),
-      child: Stack(
-        children: [
-          // Lit fuse (burns from right to left)
-          AnimatedFractionallySizedBox(
-            duration: const Duration(milliseconds: 300),
-            alignment: Alignment.centerLeft,
-            widthFactor: progress,
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    fuseColor,
-                    fuseColor.withOpacity(0.8),
-                    Colors.yellow.shade300, // Bright tip
-                  ],
-                  stops: const [0.0, 0.7, 1.0],
-                ),
-                borderRadius: BorderRadius.circular(3),
-                boxShadow: [
-                  BoxShadow(
-                    color: fuseColor.withOpacity(0.6),
-                    blurRadius: 8,
-                    spreadRadius: 1,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          // Spark/glow at the tip
-          if (progress > 0.01)
-            AnimatedPositioned(
-              duration: const Duration(milliseconds: 300),
-              left: (progress * MediaQuery.of(context).size.width - 48) - 4,
-              top: -2,
-              child: Container(
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.yellow.shade200,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.orange.shade300.withOpacity(0.8),
-                      blurRadius: 12,
-                      spreadRadius: 3,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
   /// Get urgency level based on remaining time
   int _getUrgencyLevel(int remainingSeconds) {
     if (remainingSeconds <= 5) return 3; // Critical
@@ -1379,7 +1366,7 @@ class _GameScreenState extends State<GameScreen>
           decoration: BoxDecoration(
             boxShadow: [
               BoxShadow(
-                color: glowColor.withOpacity(opacity * pulseValue),
+                color: glowColor.withValues(alpha: opacity * pulseValue),
                 blurRadius: blurRadius * pulseValue,
                 spreadRadius: 5.0 * pulseValue,
               ),
@@ -1387,63 +1374,6 @@ class _GameScreenState extends State<GameScreen>
           ),
         );
       },
-    );
-  }
-
-  /// Build filmstrip-style progress bar
-  Widget _buildFilmstripProgressBar(BuildContext context) {
-    final remaining = _remainingSeconds!.clamp(0, 5999).toInt();
-    final total = _sceneDurationSeconds ?? 90;
-    final progress = remaining / total;
-    
-    // Color based on urgency
-    Color barColor;
-    if (progress > 0.5) {
-      barColor = Colors.green.shade600;
-    } else if (progress > 0.2) {
-      barColor = Colors.orange.shade600;
-    } else {
-      barColor = Colors.red.shade600;
-    }
-    
-    return Container(
-      height: 16,
-      margin: const EdgeInsets.symmetric(horizontal: 20),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(
-          color: Colors.brown.withOpacity(0.3),
-          width: 1,
-        ),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(3),
-        child: Stack(
-          children: [
-            // Progress bar fill
-            FractionallySizedBox(
-              widthFactor: progress,
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [barColor, barColor.withOpacity(0.7)],
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                  ),
-                ),
-              ),
-            ),
-            // Filmstrip perforations
-            CustomPaint(
-              painter: _FilmstripPainter(
-                color: Colors.white.withOpacity(0.15),
-              ),
-              size: const Size(double.infinity, 16),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -1463,7 +1393,7 @@ class _GameScreenState extends State<GameScreen>
       child: AbsorbPointer(
         absorbing: true,
         child: Container(
-          color: Colors.black.withOpacity(0.78),
+          color: Colors.black.withValues(alpha: 0.78),
           alignment: Alignment.center,
           child: TweenAnimationBuilder<double>(
             key: ValueKey<String>('clapboard_${_clapboardLabel}_$_clapboardSubtitle'),
@@ -1571,14 +1501,14 @@ class _GameScreenState extends State<GameScreen>
                 boxShadow: isFound
                     ? [
                         BoxShadow(
-                          color: (color ?? Colors.black).withOpacity(0.25),
+                          color: (color ?? Colors.black).withValues(alpha: 0.25),
                           blurRadius: 10,
                           offset: const Offset(0, 4),
                         ),
                       ]
                     : [
                         BoxShadow(
-                          color: Colors.black.withOpacity(isDark ? 0.18 : 0.12),
+                          color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.12),
                           blurRadius: 6,
                           offset: const Offset(0, 2),
                         ),
@@ -1689,12 +1619,19 @@ class _GameScreenState extends State<GameScreen>
           final col = colMin + rnd.nextInt(colMax - colMin + 1);
           if (_canPlace(grid, row, col, dir, word)) {
             _place(grid, row, col, dir, word);
-            if (dir.dr == 0 && dir.dc == 1) placedRight++;
-            else if (dir.dr == 0 && dir.dc == -1) placedLeft++;
-            else if (dir.dr == 1 && dir.dc == 0) placedDown++;
-            else if (dir.dr == -1 && dir.dc == 0) placedUp++;
-            else if (dir.dr == 1 && dir.dc == 1) placedDiagDR++;
-            else if (dir.dr == 1 && dir.dc == -1) placedDiagDL++;
+            if (dir.dr == 0 && dir.dc == 1) {
+              placedRight++;
+            } else if (dir.dr == 0 && dir.dc == -1) {
+              placedLeft++;
+            } else if (dir.dr == 1 && dir.dc == 0) {
+              placedDown++;
+            } else if (dir.dr == -1 && dir.dc == 0) {
+              placedUp++;
+            } else if (dir.dr == 1 && dir.dc == 1) {
+              placedDiagDR++;
+            } else if (dir.dr == 1 && dir.dc == -1) {
+              placedDiagDL++;
+            }
             placed = true;
           }
         }
@@ -1718,7 +1655,7 @@ class _GameScreenState extends State<GameScreen>
             }
           }
         }
-  return _Puzzle(grid: grid, words: shuffled);
+        return _Puzzle(grid: grid, words: shuffled);
       }
     }
     return null;
@@ -1884,10 +1821,10 @@ class _GameScreenState extends State<GameScreen>
             builder: (context, score, child) {
               final settings = context.watch<FeedbackSettings>();
               final canUseHints = settings.hintsEnabled && score >= 20 && _sel != null && _sceneActive && !_timeExpired;
-              final theme = Theme.of(context);
-              final Color buttonColor = canUseHints
+                final theme = Theme.of(context);
+                final Color buttonColor = canUseHints
                   ? theme.colorScheme.secondary
-                  : theme.colorScheme.surfaceVariant;
+                  : theme.colorScheme.surfaceContainerHighest;
               final Color iconColor = canUseHints
                   ? theme.colorScheme.onSecondary
                   : theme.colorScheme.onSurface.withAlpha(150);
@@ -1953,8 +1890,17 @@ class _GameScreenState extends State<GameScreen>
             ),
             Column(
               children: [
-                // Theme name bar styled as glass surface
-                Padding(
+                Expanded(
+                  child: SingleChildScrollView(
+                    controller: _gameScrollController,
+                    padding: const EdgeInsets.only(bottom: 24),
+                    physics: _scrollLocked
+                        ? const NeverScrollableScrollPhysics()
+                        : const BouncingScrollPhysics(),
+                    child: Column(
+                      children: [
+                        // Theme name bar styled as glass surface
+                        Padding(
                   padding: EdgeInsets.only(
                     top: MediaQuery.of(context).padding.top + (isWide ? 76 : 68),
                   ),
@@ -1973,8 +1919,8 @@ class _GameScreenState extends State<GameScreen>
                       ),
                       borderColor: Colors.white.withAlpha(isDark ? 64 : 120),
                       elevationColor: isDark
-                          ? Colors.black.withOpacity(0.20)
-                          : Colors.black.withOpacity(0.12),
+                          ? Colors.black.withValues(alpha: 0.20)
+                          : Colors.black.withValues(alpha: 0.12),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18),
                         child: Column(
@@ -2005,8 +1951,6 @@ class _GameScreenState extends State<GameScreen>
                             if (_isTimedScene && _remainingSeconds != null) ...[
                               const SizedBox(height: 8),
                               _buildTimerDisplay(context),
-                              const SizedBox(height: 10),
-                              _buildLitFuse(context),
                             ],
                           ],
                         ),
@@ -2014,8 +1958,8 @@ class _GameScreenState extends State<GameScreen>
                     ),
                   ),
                 ),
-                // Key box with chips - transparent layout
-                Padding(
+                        // Key box with chips - transparent layout
+                        Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
@@ -2066,9 +2010,9 @@ class _GameScreenState extends State<GameScreen>
                     ],
                   ),
                 ),
-                // Selection preview listens directly to SelectionController changes
-                if (_sel != null)
-                  AnimatedBuilder(
+                        // Selection preview listens directly to SelectionController changes
+                        if (_sel != null)
+                          AnimatedBuilder(
                 animation: _sel!,
                 builder: (context, _) {
                   if (!_sel!.hasActive || _sel!.activeString.isNotEmpty == false) {
@@ -2091,7 +2035,7 @@ class _GameScreenState extends State<GameScreen>
                               borderRadius: BorderRadius.circular(8),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.3),
+                                  color: Colors.black.withValues(alpha: 0.3),
                                   blurRadius: 8,
                                   offset: const Offset(0, 3),
                                   spreadRadius: 0,
@@ -2176,12 +2120,12 @@ class _GameScreenState extends State<GameScreen>
                     ),
                   );
                 },
-                  )
-                else
-                  const SizedBox(height: 35),
-                const SizedBox(height: 16),
-                // Grid container - uses LayoutBuilder to size based on available width
-                LayoutBuilder(
+                          )
+                        else
+                          const SizedBox(height: 35),
+                        const SizedBox(height: 16),
+                        // Grid container - uses LayoutBuilder to size based on available width
+                        LayoutBuilder(
                   builder: (context, constraints) {
                     // Calculate grid size based on screen width with padding
                     final availableWidth = constraints.maxWidth - 32; // 16px padding on each side
@@ -2207,7 +2151,7 @@ class _GameScreenState extends State<GameScreen>
                           // Listen directly to SelectionController so grid and painter update on drag
                           return AnimatedBuilder(
                             animation: _sel!,
-                            builder: (context, __) {
+                            builder: (context, _) {
                               return Stack(
                                 fit: StackFit.expand,
                                 children: [
@@ -2231,9 +2175,12 @@ class _GameScreenState extends State<GameScreen>
                                             width: boardSize,
                                             height: boardSize,
                                             child: GestureDetector(
+                                              behavior: HitTestBehavior.opaque,
+                                              onPanDown: (_) => _handleGridPanDown(),
                                               onPanStart: (d) => _onGridPanStart(d, gridConstraints),
                                               onPanUpdate: (d) => _onGridPanUpdate(d, gridConstraints),
                                               onPanEnd: _onPanEnd,
+                                              onPanCancel: () => _setScrollLocked(false),
                                               child: Stack(
                                                 fit: StackFit.expand,
                                                 clipBehavior: Clip.none,
@@ -2314,7 +2261,7 @@ class _GameScreenState extends State<GameScreen>
                                                       painter: _GridPainter(
                                                         gridSize: gridSize,
                                                         cellSize: boardSize / gridSize,
-                                                        lineColor: Colors.grey.withOpacity(0.4),
+                                                        lineColor: Colors.grey.withValues(alpha: 0.4),
                                                         lineWidth: 1.0,
                                                       ),
                                                     ),
@@ -2327,14 +2274,22 @@ class _GameScreenState extends State<GameScreen>
                                       ),
                                     ),
                                   ),
-                                  _showConfetti ? OptimizedConfettiLayer(
-                                    particles: _confetti,
-                                    animation: _confettiAnimation,
-                                  ) : const SizedBox.shrink(),
+                                  ValueListenableBuilder<bool>(
+                                    valueListenable: _showConfettiNotifier,
+                                    builder: (context, showConfetti, _) {
+                                      if (!showConfetti) {
+                                        return const SizedBox.shrink();
+                                      }
+                                      return OptimizedConfettiLayer(
+                                        particles: _confetti,
+                                        animation: _confettiAnimation,
+                                      );
+                                    },
+                                  ),
                                   if (_timeExpired)
                                     Positioned.fill(
                                       child: Container(
-                                        color: Colors.black.withOpacity(0.45),
+                                        color: Colors.black.withValues(alpha: 0.45),
                                         alignment: Alignment.center,
                                         child: Column(
                                           mainAxisSize: MainAxisSize.min,
@@ -2367,7 +2322,7 @@ class _GameScreenState extends State<GameScreen>
                                   else if (_sel?.isComplete == true)
                                     Positioned.fill(
                                       child: Container(
-                                        color: Colors.black.withOpacity(0.55),
+                                        color: Colors.black.withValues(alpha: 0.55),
                                         alignment: Alignment.center,
                                         child: Column(
                                           mainAxisSize: MainAxisSize.min,
@@ -2423,7 +2378,10 @@ class _GameScreenState extends State<GameScreen>
                     );
                   },
                 ),
-                const Spacer(), // Push banner ad to bottom
+                      ],
+                    ),
+                  ),
+                ),
                 if (_isBannerAdLoaded && _bannerAd != null)
                   SafeArea(
                     top: false,
@@ -2450,7 +2408,13 @@ class _GameScreenState extends State<GameScreen>
     // (safe to fire-and-forget during widget disposal)
     InterstitialAdManager.instance.dispose();
     _bannerAd?.dispose();
-  unawaited(_cancelSceneTimer());
+    GameController? controller;
+    try {
+      controller = context.read<GameController>();
+    } catch (_) {
+      controller = null;
+    }
+    unawaited(_cancelSceneTimer(controllerOverride: controller));
     // Release animation controller back to pool
     AnimationManager().releaseController(_confettiController, id: 'confetti');
     // Dispose ValueNotifiers
@@ -2461,6 +2425,7 @@ class _GameScreenState extends State<GameScreen>
     _saveDebounce?.cancel();
     _clapboardTimer?.cancel();
     _autoCompleteResetTimer?.cancel();
+      _gameScrollController.dispose();
     super.dispose();
   }
 }
@@ -2550,7 +2515,7 @@ class _ClapboardCardState extends State<_ClapboardCard>
               border: Border.all(color: Colors.white, width: 3),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.45),
+                  color: Colors.black.withValues(alpha: 0.45),
                   blurRadius: 28,
                   spreadRadius: 4,
                   offset: const Offset(0, 22),
@@ -2578,7 +2543,7 @@ class _ClapboardCardState extends State<_ClapboardCard>
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 2.2,
-                    color: Colors.white.withOpacity(0.9),
+                    color: Colors.white.withValues(alpha: 0.9),
                   ),
                 ),
                 const SizedBox(height: 18),
@@ -2586,7 +2551,7 @@ class _ClapboardCardState extends State<_ClapboardCard>
                   width: 120,
                   height: 2,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.12),
+                    color: Colors.white.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -2598,7 +2563,7 @@ class _ClapboardCardState extends State<_ClapboardCard>
                     fontSize: 14,
                     letterSpacing: 1.8,
                     fontWeight: FontWeight.w600,
-                    color: widget.accentColor.withOpacity(0.8),
+                    color: widget.accentColor.withValues(alpha: 0.8),
                   ),
                 ),
               ],
@@ -2682,19 +2647,18 @@ class _ClapboardHeader extends StatelessWidget {
     );
   }
 }
-
 class _GridPainter extends CustomPainter {
-  final int gridSize;
-  final double cellSize;
-  final Color lineColor;
-  final double lineWidth;
-
-  _GridPainter({
+  const _GridPainter({
     required this.gridSize,
     required this.cellSize,
     required this.lineColor,
     required this.lineWidth,
   });
+
+  final int gridSize;
+  final double cellSize;
+  final Color lineColor;
+  final double lineWidth;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -2703,22 +2667,16 @@ class _GridPainter extends CustomPainter {
       ..strokeWidth = lineWidth
       ..style = PaintingStyle.stroke;
 
-    // Draw vertical lines
-    for (int i = 0; i <= gridSize; i++) {
-      final x = i * cellSize;
+    for (var i = 0; i <= gridSize; i++) {
+      final offset = i * cellSize;
       canvas.drawLine(
-        Offset(x, 0),
-        Offset(x, size.height),
+        Offset(offset, 0),
+        Offset(offset, size.height),
         paint,
       );
-    }
-
-    // Draw horizontal lines
-    for (int i = 0; i <= gridSize; i++) {
-      final y = i * cellSize;
       canvas.drawLine(
-        Offset(0, y),
-        Offset(size.width, y),
+        Offset(0, offset),
+        Offset(size.width, offset),
         paint,
       );
     }
@@ -2727,9 +2685,9 @@ class _GridPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _GridPainter oldDelegate) {
     return oldDelegate.gridSize != gridSize ||
-           oldDelegate.cellSize != cellSize ||
-           oldDelegate.lineColor != lineColor ||
-           oldDelegate.lineWidth != lineWidth;
+        oldDelegate.cellSize != cellSize ||
+        oldDelegate.lineColor != lineColor ||
+        oldDelegate.lineWidth != lineWidth;
   }
 }
 
@@ -2788,12 +2746,6 @@ class _GoldenTicket extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const gradient = LinearGradient(
-      colors: [Color(0xFFFFD700), Color(0xFFFFA500), Color(0xFFFFD700)],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    );
-    
     const ticketGradient = LinearGradient(
       colors: [
         Color(0xFFFFF5CC), // Light cream
@@ -2865,7 +2817,7 @@ class _GoldenTicket extends StatelessWidget {
                   child: Container(
                     width: width,
                     height: height,
-                    color: Colors.black.withOpacity(0.2),
+                    color: Colors.black.withValues(alpha: 0.2),
                   ),
                 ),
               ),
@@ -3098,43 +3050,12 @@ class _TicketClipper extends CustomClipper<Path> {
   }
 }
 
-class _TicketBorderPainter extends CustomPainter {
-  final double cornerRadius;
-  final double notchRadius;
-  final double strokeWidth;
-  final Color color;
-  const _TicketBorderPainter({
-    required this.cornerRadius,
-    required this.notchRadius,
-    required this.color,
-    this.strokeWidth = 2,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final path = _TicketClipper(cornerRadius: cornerRadius, notchRadius: notchRadius).getClip(size);
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth
-      ..color = color;
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _TicketBorderPainter oldDelegate) {
-    return oldDelegate.cornerRadius != cornerRadius ||
-        oldDelegate.notchRadius != notchRadius ||
-        oldDelegate.strokeWidth != strokeWidth ||
-        oldDelegate.color != color;
-  }
-}
-
 // Ticket pattern painter for vintage look
 class _TicketPatternPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.brown.withOpacity(0.05)
+      ..color = Colors.brown.withValues(alpha: 0.05)
       ..strokeWidth = 1
       ..style = PaintingStyle.stroke;
     
@@ -3158,7 +3079,7 @@ class _PerforatedLinePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.brown.withOpacity(0.3)
+      ..color = Colors.brown.withValues(alpha: 0.3)
       ..strokeWidth = 1;
     
     const dashHeight = 3.0;
@@ -3177,105 +3098,6 @@ class _PerforatedLinePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-// Circular progress painter for timer ring
-class _CircularProgressPainter extends CustomPainter {
-  final double progress;
-  final Color color;
-  final Color backgroundColor;
-  final double strokeWidth;
-
-  _CircularProgressPainter({
-    required this.progress,
-    required this.color,
-    required this.backgroundColor,
-    this.strokeWidth = 4.0,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = (size.width - strokeWidth) / 2;
-
-    // Background circle
-    final bgPaint = Paint()
-      ..color = backgroundColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.round;
-
-    canvas.drawCircle(center, radius, bgPaint);
-
-    // Progress arc
-    final progressPaint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.round;
-
-    const startAngle = -pi / 2; // Start at top
-    final sweepAngle = 2 * pi * progress;
-
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius),
-      startAngle,
-      sweepAngle,
-      false,
-      progressPaint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _CircularProgressPainter oldDelegate) {
-    return oldDelegate.progress != progress ||
-        oldDelegate.color != color ||
-        oldDelegate.backgroundColor != backgroundColor ||
-        oldDelegate.strokeWidth != strokeWidth;
-  }
-}
-
-// Filmstrip painter for movie-themed progress bar
-class _FilmstripPainter extends CustomPainter {
-  final Color color;
-
-  _FilmstripPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-
-    const holeWidth = 3.0;
-    const holeHeight = 5.0;
-    const spacing = 8.0;
-
-    // Draw perforations on top and bottom edges
-    for (double x = spacing; x < size.width; x += spacing) {
-      // Top perforations
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(x - holeWidth / 2, 1, holeWidth, holeHeight),
-          const Radius.circular(1),
-        ),
-        paint,
-      );
-      // Bottom perforations
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(x - holeWidth / 2, size.height - holeHeight - 1, holeWidth, holeHeight),
-          const Radius.circular(1),
-        ),
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _FilmstripPainter oldDelegate) {
-    return oldDelegate.color != color;
-  }
 }
 
 class _Puzzle {

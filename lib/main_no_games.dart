@@ -16,7 +16,7 @@ import 'screens/options_screen.dart' as options;
 // services/achievements_service.dart, so we can just use it normally.
 
 void main() {
-  print("=== STARTING MAIN NO GAMES ===");
+  debugPrint("=== STARTING MAIN NO GAMES ===");
   runApp(const BollyWordGridApp());
 }
 
@@ -25,7 +25,7 @@ class BollyWordGridApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    print("=== BUILDING APP NO GAMES ===");
+    debugPrint("=== BUILDING APP NO GAMES ===");
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => FeedbackSettings()),
@@ -58,7 +58,7 @@ class BollyWordGridApp extends StatelessWidget {
       ],
       child: Builder(
         builder: (context) {
-          print("=== BUILDING MATERIAL APP NO GAMES ===");
+          debugPrint("=== BUILDING MATERIAL APP NO GAMES ===");
           final settings = context.watch<FeedbackSettings>();
 
           final themeData = AppThemes.themeData(settings.theme);

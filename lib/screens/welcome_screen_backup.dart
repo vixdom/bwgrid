@@ -446,7 +446,7 @@ class _SecondaryButton extends StatelessWidget {
           shape: const StadiumBorder(),
           side: const BorderSide(color: Color(0xFFF39C12), width: 2),
           foregroundColor: const Color(0xFFF39C12),
-          backgroundColor: Colors.black.withOpacity(.25),
+          backgroundColor: Colors.black.withValues(alpha: .25),
         ),
         onPressed: onTap,
         icon: Icon(icon),

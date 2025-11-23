@@ -25,6 +25,8 @@ class WelcomeScreen extends StatelessWidget {
     final topSpacing = (screenSize.height * 0.6) - 140;
     final adjustedTopSpacing = topSpacing > 0 ? topSpacing : 0.0;
 
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+
     return Scaffold(
       body: Stack(
         children: [
@@ -41,63 +43,93 @@ class WelcomeScreen extends StatelessWidget {
               },
             ),
           ),
-          Column(
-            children: [
-              SizedBox(height: adjustedTopSpacing),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 32),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.black.withValues(alpha: 0.0),
-                        Colors.black.withValues(alpha: 0.75),
-                      ],
-                    ),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _PrimaryButton(
-                        label: 'Play now',
-                        icon: Icons.play_arrow,
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const game.GameScreen(
-                                forceShowProgressPath: true,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      _SecondaryButton(
-                        label: 'Daily Challenge',
-                        icon: Icons.flash_on,
-                        showComingSoon: true,
-                        onDisabledTap: () {
-                          // Register a tap towards the cheat sequence
-                          CheatService.instance.registerDailyTap(context);
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      _SecondaryButton(
-                        label: 'Options',
-                        icon: Icons.settings,
-                        onTap: () {
-                          Navigator.of(context).pushNamed('/options');
-                        },
-                      ),
-                      const SizedBox(height: 28),
-                      const _AwardsShareRow(),
+          Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withValues(alpha: 0.0),
+                      Colors.black.withValues(alpha: 0.8),
                     ],
                   ),
                 ),
               ),
-            ],
+            ),
+          ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(
+                  0,
+                  adjustedTopSpacing,
+                  0,
+                  bottomPadding + 24,
+                ),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 420),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(24),
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.black.withValues(alpha: 0.15),
+                              Colors.black.withValues(alpha: 0.75),
+                            ],
+                          ),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _PrimaryButton(
+                              label: 'Play now',
+                              icon: Icons.play_arrow,
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => const game.GameScreen(
+                                      forceShowProgressPath: true,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 16),
+                            _SecondaryButton(
+                              label: 'Daily Challenge',
+                              icon: Icons.flash_on,
+                              showComingSoon: true,
+                              onDisabledTap: () {
+                                // Register a tap towards the cheat sequence
+                                CheatService.instance.registerDailyTap(context);
+                              },
+                            ),
+                            const SizedBox(height: 16),
+                            _SecondaryButton(
+                              label: 'Options',
+                              icon: Icons.settings,
+                              onTap: () {
+                                Navigator.of(context).pushNamed('/options');
+                              },
+                            ),
+                            const SizedBox(height: 28),
+                            const _AwardsShareRow(),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
         ],
       ),

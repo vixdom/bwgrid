@@ -426,11 +426,10 @@ class FeedbackController with ChangeNotifier {
   Future<void> _prepareBackgroundMusic() async {
     if (_musicInitialized) return;
     try {
-      final sources = _musicPlaylist
+        final sources = _musicPlaylist
           .map<AudioSource>((asset) => AudioSource.asset(asset))
           .toList(growable: false);
-      final playlist = ConcatenatingAudioSource(children: sources);
-      await _music.setAudioSource(playlist);
+        await _music.setAudioSources(sources);
       await _music.setLoopMode(LoopMode.all);
       await _music.setShuffleModeEnabled(false);
       _musicInitialized = true;

@@ -149,10 +149,12 @@ class GamePersistence {
     }
   }
 
-  Future<void> clear() async {
+  Future<void> clear({bool resetUnlocks = false}) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_kSavedGameKey);
-    await prefs.remove(_kAllUnlockedKey);
+    if (resetUnlocks) {
+      await prefs.remove(_kAllUnlockedKey);
+    }
   }
 
   Future<void> setAllScreensUnlocked(bool unlocked) async {

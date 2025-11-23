@@ -17,14 +17,14 @@ class ProgressPathScreen extends StatefulWidget {
     required this.allStages,
     required this.currentStageIndex,
     required this.currentSceneIndex,
-    required this.onComplete,
+  required this.onComplete,
     this.onScreenSelected,
   });
 
   final List<StageDefinition> allStages;
   final int currentStageIndex;
   final int currentSceneIndex;
-  final VoidCallback onComplete;
+  final void Function(bool resumeGameplay) onComplete;
   final void Function(int stageIndex)? onScreenSelected;
 
   @override
@@ -35,7 +35,6 @@ class _ProgressPathScreenState extends State<ProgressPathScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
-  bool _showDetails = false;
   late final List<GlobalKey> _cardKeys;
   bool _allUnlocked = false;
 
@@ -66,8 +65,7 @@ class _ProgressPathScreenState extends State<ProgressPathScreen>
     // Start animation after a short delay
     Future.delayed(const Duration(milliseconds: 100), () {
       if (mounted) {
-        _controller.forward();
-        setState(() => _showDetails = true);
+  _controller.forward();
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _scrollToCurrentStage();
         });
@@ -97,7 +95,7 @@ class _ProgressPathScreenState extends State<ProgressPathScreen>
     );
   }
 
-  void _dismissScreen({int? selectedStageIndex}) async {
+  void _dismissScreen({int? selectedStageIndex, bool resumeGameplay = true}) async {
     if (_controller.isAnimating) return;
     await _controller.reverse();
     if (mounted) {
@@ -106,7 +104,7 @@ class _ProgressPathScreenState extends State<ProgressPathScreen>
         widget.onScreenSelected!(selectedStageIndex);
       }
       // Always call onComplete to dismiss the screen
-      widget.onComplete();
+      widget.onComplete(resumeGameplay);
     }
   }
 
@@ -125,7 +123,7 @@ class _ProgressPathScreenState extends State<ProgressPathScreen>
       extendBodyBehindAppBar: true,
       appBar: _GlassProgressAppBar(
         title: 'BollyWord Multiplex',
-        onClose: _dismissScreen,
+        onClose: () => _dismissScreen(resumeGameplay: false),
       ),
       body: Stack(
         fit: StackFit.expand,
@@ -207,7 +205,7 @@ class _ProgressPathScreenState extends State<ProgressPathScreen>
                   _showReplayConfirmation(index);
                 } else {
                   // Current screen - just dismiss and continue
-                  _dismissScreen();
+                  _dismissScreen(resumeGameplay: true);
                 }
               }
             : null,
@@ -390,7 +388,7 @@ class _ProgressPathScreenState extends State<ProgressPathScreen>
     );
 
     if (confirmed == true && mounted) {
-      _dismissScreen(selectedStageIndex: stageIndex);
+      _dismissScreen(selectedStageIndex: stageIndex, resumeGameplay: true);
     }
   }
 
@@ -542,7 +540,6 @@ class _GlassSurface extends StatelessWidget {
     this.backgroundGradient,
     this.borderColor,
     this.elevationColor,
-    this.blurAmount = 16,
   });
 
   final Widget child;
@@ -550,7 +547,6 @@ class _GlassSurface extends StatelessWidget {
   final Gradient? backgroundGradient;
   final Color? borderColor;
   final Color? elevationColor;
-  final double blurAmount;
 
   @override
   Widget build(BuildContext context) {
@@ -570,7 +566,7 @@ class _GlassSurface extends StatelessWidget {
       child: ClipRRect(
         borderRadius: borderRadius ?? BorderRadius.zero,
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: blurAmount, sigmaY: blurAmount),
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
           child: Container(
             decoration: BoxDecoration(
               gradient: backgroundGradient,

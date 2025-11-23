@@ -55,8 +55,8 @@ class StagePlaybook {
 
   static StageDefinition stageOne() => const StageDefinition(
     index: 1,
-  name: 'B&W era',
-    themeName: 'B&W era',
+  name: 'GenZ Stars',
+    themeName: 'GenZ Stars',
         scenes: [
           SceneDefinition(
             index: 1,
@@ -78,9 +78,9 @@ class StagePlaybook {
       );
 
   static StageDefinition stageTwo() => const StageDefinition(
-        index: 2,
-    name: '80s and 90s',
-        themeName: '80s and 90s',
+    index: 2,
+  name: 'Millenial Stars',
+    themeName: 'Millenial Stars',
         scenes: [
           SceneDefinition(
             index: 1,
@@ -102,9 +102,9 @@ class StagePlaybook {
       );
 
   static StageDefinition stageThree() => const StageDefinition(
-        index: 3,
-    name: 'Millenial Stars',
-        themeName: 'Millenial Stars',
+    index: 3,
+  name: 'South Heroes',
+    themeName: 'South Heroes',
         scenes: [
           SceneDefinition(
             index: 1,
@@ -126,9 +126,9 @@ class StagePlaybook {
       );
 
   static StageDefinition stageFour() => const StageDefinition(
-        index: 4,
-    name: 'GenZ Stars',
-        themeName: 'GenZ Stars',
+    index: 4,
+  name: 'Golden Voices',
+    themeName: 'Golden Voices',
         scenes: [
           SceneDefinition(
             index: 1,
@@ -150,9 +150,9 @@ class StagePlaybook {
       );
 
   static StageDefinition stageFive() => const StageDefinition(
-        index: 5,
-    name: 'Golden Voices',
-        themeName: 'Golden Voices',
+    index: 5,
+  name: '80s and 90s',
+    themeName: '80s and 90s',
         scenes: [
           SceneDefinition(
             index: 1,
@@ -174,9 +174,9 @@ class StagePlaybook {
       );
 
   static StageDefinition stageSix() => const StageDefinition(
-        index: 6,
-    name: 'South Heroes',
-        themeName: 'South Heroes',
+    index: 6,
+  name: 'Filmy Family',
+    themeName: 'Filmy Family',
         scenes: [
           SceneDefinition(
             index: 1,
@@ -198,9 +198,9 @@ class StagePlaybook {
       );
 
   static StageDefinition stageSeven() => const StageDefinition(
-        index: 7,
-    name: 'Filmy Family',
-        themeName: 'Filmy Family',
+    index: 7,
+  name: 'Beyond India',
+    themeName: 'Beyond India',
         scenes: [
           SceneDefinition(
             index: 1,
@@ -222,9 +222,9 @@ class StagePlaybook {
       );
 
   static StageDefinition stageEight() => const StageDefinition(
-        index: 8,
-    name: 'Beyond India',
-        themeName: 'Beyond India',
+    index: 8,
+  name: 'Dance Dance',
+    themeName: 'Dance Dance',
         scenes: [
           SceneDefinition(
             index: 1,
@@ -246,9 +246,9 @@ class StagePlaybook {
       );
 
   static StageDefinition stageNine() => const StageDefinition(
-        index: 9,
-    name: 'Dance Dance',
-        themeName: 'Dance Dance',
+    index: 9,
+  name: 'Bad Men',
+    themeName: 'Bad Men',
         scenes: [
           SceneDefinition(
             index: 1,
@@ -270,9 +270,9 @@ class StagePlaybook {
       );
 
   static StageDefinition stageTen() => const StageDefinition(
-        index: 10,
-    name: 'Bad Men',
-        themeName: 'Bad Men',
+    index: 10,
+  name: 'B&W era',
+    themeName: 'B&W era',
         scenes: [
           SceneDefinition(
             index: 1,

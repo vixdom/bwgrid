@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 // import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../services/feedback_controller.dart';
-import '../services/game_controller.dart';
 import '../services/achievements_service.dart';
 import '../services/animation_manager.dart';
 
@@ -72,12 +71,16 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       final feedbackController = context.read<FeedbackController>();
       await feedbackController.init();
 
+      if (!mounted) return;
+
       setState(() => _loadingText = 'Connecting services...');
       // Initialize achievements service
       final achievementsService = context.read<AchievementsService>();
       if (!achievementsService.isSignedIn) {
         await achievementsService.signIn();
       }
+
+      if (!mounted) return;
 
       // Begin background preloading of gameplay-critical images
       setState(() => _loadingText = 'Caching assets...');
@@ -161,7 +164,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFFF39C12).withOpacity(0.3),
+                                  color: const Color(0xFFF39C12).withValues(alpha: 0.3),
                                   blurRadius: 20,
                                   spreadRadius: 5,
                                 ),
@@ -186,7 +189,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                               fontFamily: 'SF Pro Display',
                               shadows: [
                                 Shadow(
-                                  color: const Color(0xFFF39C12).withOpacity(0.5),
+                                  color: const Color(0xFFF39C12).withValues(alpha: 0.5),
                                   blurRadius: 10,
                                   offset: const Offset(0, 2),
                                 ),
@@ -202,7 +205,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
-                              color: Colors.white.withOpacity(0.8),
+                              color: Colors.white.withValues(alpha: 0.8),
                               letterSpacing: 1.2,
                               fontFamily: 'SF Pro Text',
                             ),
@@ -216,7 +219,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                             height: 40,
                             child: CircularProgressIndicator(
                               valueColor: AlwaysStoppedAnimation<Color>(
-                                const Color(0xFFF39C12).withOpacity(0.8),
+                                const Color(0xFFF39C12).withValues(alpha: 0.8),
                               ),
                               strokeWidth: 3,
                             ),
@@ -230,7 +233,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w400,
-                              color: Colors.white.withOpacity(0.6),
+                              color: Colors.white.withValues(alpha: 0.6),
                               fontFamily: 'SF Pro Text',
                             ),
                           ),
@@ -254,7 +257,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
-                      color: Colors.white.withOpacity(0.7),
+                      color: Colors.white.withValues(alpha: 0.7),
                       fontFamily: 'SF Pro Text',
                     ),
                   ),
@@ -264,7 +267,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w400,
-                      color: Colors.white.withOpacity(0.5),
+                      color: Colors.white.withValues(alpha: 0.5),
                       fontFamily: 'SF Pro Text',
                     ),
                   ),

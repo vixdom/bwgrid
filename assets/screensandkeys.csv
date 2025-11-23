@@ -1,680 +1,401 @@
-﻿#,Screen Name,Key
-1,B&W era,DilipKumar
-1,B&W era,RajKapoor
-1,B&W era,DevAnand
-1,B&W era,Nargis
-1,B&W era,AshokKumar
-1,B&W era,Madhubala
-1,B&W era,WaheedaR
-1,B&W era,GuruDutt
-1,B&W era,Mehmood
-1,B&W era,KishoreKumar
-1,B&W era,RajendraK
-1,B&W era,Mumtaz
-1,B&W era,Vyjyantimala
-1,B&W era,ShammiKapoor
-1,B&W era,Suraiyya
-1,B&W era,LalitaPawar
-1,B&W era,RajKumar
-1,B&W era,BalrajSahni
-1,B&W era,BinaRai
-1,B&W era,Ifthekar
-1,B&W era,DaraSingh
-1,B&W era,GeetaBali
-1,B&W era,NirupaRoy
-1,B&W era,JohnnyWalker
-1,B&W era,Helen
-1,B&W era,MalaSinha
-1,B&W era,KaminiKaushl
-1,B&W era,FerozKhan
-1,B&W era,SunilDutt
-1,B&W era,DurgaKhote
-1,B&W era,RajeshKhanna
-1,B&W era,AshaParekh
-1,B&W era,SairaBanu
-1,B&W era,Nutan
-1,B&W era,Dharmendra
-1,B&W era,Pran
-1,B&W era,MeenaKumari
-1,B&W era,OmPrakash
-1,B&W era,TunTun
-1,B&W era,Premnath
-2,80s and 90s,AmitabhB
-2,80s and 90s,AnilKapoor
-2,80s and 90s,SunnyDeol
-2,80s and 90s,JackieShroff
-2,80s and 90s,Govinda
-2,80s and 90s,Mithun
-2,80s and 90s,RishiKapoor
-2,80s and 90s,SanjayDutt
-2,80s and 90s,ShashiKapoor
-2,80s and 90s,Jeetendra
-2,80s and 90s,Dharmendra
-2,80s and 90s,RajeshKhanna
-2,80s and 90s,VinodKhanna
-2,80s and 90s,KumarGaurav
-2,80s and 90s,DevAnand
-2,80s and 90s,Shatrughan
-2,80s and 90s,Naseeruddin
-2,80s and 90s,FerozKhan
-2,80s and 90s,RajKumar
-2,80s and 90s,AmritaSingh
-2,80s and 90s,MeenakshiS
-2,80s and 90s,HemaMalini
-2,80s and 90s,Rekha
-2,80s and 90s,Sridevi
-2,80s and 90s,JayaPrada
-2,80s and 90s,MadhuriDixit
-2,80s and 90s,DimpleK
-2,80s and 90s,PadminiK
-2,80s and 90s,ZeenatAman
-2,80s and 90s,SushmaSeth
-2,80s and 90s,SmitaPatil
-2,80s and 90s,JuhiChawla
-2,80s and 90s,NeetuSingh
-2,80s and 90s,BindiyaG
-2,80s and 90s,ShabanaAzmi
-2,80s and 90s,Raveena
-2,80s and 90s,Karisma
-2,80s and 90s,Manisha
-2,80s and 90s,SonaliBendre
-2,80s and 90s,DivyaBharti
-3,Millenial Stars,ShahrukhKhan
-3,Millenial Stars,SalmanKhan
-3,Millenial Stars,AamirKhan
-3,Millenial Stars,Hrithik
-3,Millenial Stars,AkshayKumar
-3,Millenial Stars,AjayDevgn
-3,Millenial Stars,SaifAliKhan
-3,Millenial Stars,AbhishekB
-3,Millenial Stars,RanbirKapoor
-3,Millenial Stars,ShahidKapoor
-3,Millenial Stars,JohnAbraham
-3,Millenial Stars,ArjunRampal
-3,Millenial Stars,VivekOberoi
-3,Millenial Stars,EmraanHashmi
-3,Millenial Stars,AbhayDeol
-3,Millenial Stars,BobbyDeol
-3,Millenial Stars,SunielShetty
-3,Millenial Stars,TussharK
-3,Millenial Stars,FardeenKhan
-3,Millenial Stars,UdayChopra
-3,Millenial Stars,KareenaK
-3,Millenial Stars,RaniMukerji
-3,Millenial Stars,PreityZinta
-3,Millenial Stars,AishwaryaRai
-3,Millenial Stars,KatrinaKaif
-3,Millenial Stars,PriyankaC
-3,Millenial Stars,LaraDutta
-3,Millenial Stars,BipashaBasu
-3,Millenial Stars,AmishaPatel
-3,Millenial Stars,EshaDeol
-3,Millenial Stars,DiaMirza
-3,Millenial Stars,SameeraReddy
-3,Millenial Stars,ShilpaShetty
-3,Millenial Stars,KonkonaSen
-3,Millenial Stars,Raveena
-3,Millenial Stars,Celina
-3,Millenial Stars,NehaDhupia
-3,Millenial Stars,Sonakshi
-3,Millenial Stars,Mallika
-3,Millenial Stars,Asin
-4,GenZ Stars,RanveerSingh
-4,GenZ Stars,Deepika
-4,GenZ Stars,AliaBhatt
-4,GenZ Stars,VarunDhawan
-4,GenZ Stars,SidharthM
-4,GenZ Stars,TigerShroff
-4,GenZ Stars,KritiSanon
-4,GenZ Stars,KartikAryan
-4,GenZ Stars,ShraddhaK
-4,GenZ Stars,AyushmannK
-4,GenZ Stars,RajkummarRao
-4,GenZ Stars,VickyKaushal
-4,GenZ Stars,JanhviKapoor
-4,GenZ Stars,SaraAliKhan
-4,GenZ Stars,AnanyaPandey
-4,GenZ Stars,KiaraAdvani
-4,GenZ Stars,BhumiP
-4,GenZ Stars,DishaPatani
-4,GenZ Stars,Parineeti
-4,GenZ Stars,Kangana
-4,GenZ Stars,Taapsee
-4,GenZ Stars,YamiGautam
-4,GenZ Stars,AhaanP
-4,GenZ Stars,NoraFatehi
-4,GenZ Stars,PankajT
-4,GenZ Stars,Nawazuddin
-4,GenZ Stars,AneetPadda
-4,GenZ Stars,RadhikaApte
-4,GenZ Stars,RakulPreet
-4,GenZ Stars,IshaanK
-4,GenZ Stars,MrunalThakur
-4,GenZ Stars,FatimaSana
-4,GenZ Stars,SanyaM
-4,GenZ Stars,LakshyaL
-4,GenZ Stars,SiddhantC
-4,GenZ Stars,SobhitaD
-4,GenZ Stars,TriptiDimri
-4,GenZ Stars,Sharvari
-4,GenZ Stars,MouniRoy
-4,GenZ Stars,SunnyLeone
-5,Golden Voices,LataDidi
-5,Golden Voices,AshaBhosle
-5,Golden Voices,KishoreKumar
-5,Golden Voices,MohdRafi
-5,Golden Voices,Mukesh
-5,Golden Voices,MannaDey
-5,Golden Voices,HemantKumar
-5,Golden Voices,TalatMehmood
-5,Golden Voices,AlkaYagnik
-5,Golden Voices,UditNarayan
-5,Golden Voices,KumarSanu
-5,Golden Voices,Abhijeet
-5,Golden Voices,SonuNigam
-5,Golden Voices,Shaan
-5,Golden Voices,KK
-5,Golden Voices,Hariharan
-5,Golden Voices,SukhwinderS
-5,Golden Voices,KavitaK
-5,Golden Voices,AnuradhaP
-5,Golden Voices,ShreyaG
-5,Golden Voices,Sunnidhi
-5,Golden Voices,NehaKakkar
-5,Golden Voices,ArijitSingh
-5,Golden Voices,JubinN
-5,Golden Voices,KailashKher
-5,Golden Voices,AdnanSami
-5,Golden Voices,MohitChauhan
-5,Golden Voices,Papon
-5,Golden Voices,BennyDayal
-5,Golden Voices,AnkitTiwari
-5,Golden Voices,KanikaKapoor
-5,Golden Voices,Palak
-5,Golden Voices,MonaliThakur
-5,Golden Voices,NeetiMohan
-5,Golden Voices,Chitra
-5,Golden Voices,SadhnaSargam
-5,Golden Voices,DarshanRaval
-5,Golden Voices,Vishal
-5,Golden Voices,Raghav
-5,Golden Voices,SidSriram
-6,South Heroes,Kamalhassan
-6,South Heroes,Chiranjeevi
-6,South Heroes,Nagarjuna
-6,South Heroes,Mammootty
-6,South Heroes,Mohanlal
-6,South Heroes,Dhanush
-6,South Heroes,Vijay
-6,South Heroes,Surya
-6,South Heroes,Prabhas
-6,South Heroes,AlluArjun
-6,South Heroes,RamCharan
-6,South Heroes,VarunTej
-6,South Heroes,FahadFaasil
-6,South Heroes,Rajkumar
-6,South Heroes,MaheshBabu
-6,South Heroes,NTRJR
-6,South Heroes,Balakrishna
-6,South Heroes,VijayD
-6,South Heroes,Nani
-6,South Heroes,SundeepK
-6,South Heroes,VishwakSen
-6,South Heroes,Ajit
-6,South Heroes,Vikram
-6,South Heroes,Dulqer
-6,South Heroes,Vishal
-6,South Heroes,SimbuTR
-6,South Heroes,ArvindSwamy
-6,South Heroes,Satyaraj
-6,South Heroes,Prithviraj
-6,South Heroes,NivinPauly
-6,South Heroes,SoubinShahir
-6,South Heroes,Yash
-6,South Heroes,KicchaSudeep
-6,South Heroes,Upendra
-6,South Heroes,RishabShetty
-6,South Heroes,Rakshit
-6,South Heroes,VSethupathi
-6,South Heroes,PradeepR
-6,South Heroes,Karthi
-6,South Heroes,SidduJ
-7,Filmy Family,Tiger
-7,Filmy Family,Kareena
-7,Filmy Family,Janhavi
-7,Filmy Family,Ranbir
-7,Filmy Family,Shanaya
-7,Filmy Family,Suhana
-7,Filmy Family,Varun
-7,Filmy Family,Sara
-7,Filmy Family,Ibrahim
-7,Filmy Family,Alia
-7,Filmy Family,Kajol
-7,Filmy Family,Sanjay
-7,Filmy Family,Abhishek
-7,Filmy Family,Esha
-7,Filmy Family,Bobby
-7,Filmy Family,Sunny
-7,Filmy Family,Twinkle
-7,Filmy Family,Farhan
-7,Filmy Family,Abhay
-7,Filmy Family,Athiya
-7,Filmy Family,Shraddha
-7,Filmy Family,Imran
-7,Filmy Family,Ananya
-7,Filmy Family,Junaid
-7,Filmy Family,Uday
-7,Filmy Family,Pooja
-7,Filmy Family,Hrithik
-7,Filmy Family,Soha
-7,Filmy Family,Karisma
-7,Filmy Family,Sonam
-7,Filmy Family,Sonakshi
-7,Filmy Family,Harshvardhan
-7,Filmy Family,Khushi
-7,Filmy Family,Ramcharan
-7,Filmy Family,Dulquer
-7,Filmy Family,NeilNitin
-7,Filmy Family,AlluArjun
-7,Filmy Family,Arjun
-7,Filmy Family,Tusshar
-7,Filmy Family,Fardeen
-8,Beyond India,Amitabh
-8,Beyond India,Irrfan
-8,Beyond India,ShashiKapoor
-8,Beyond India,Ompuri
-8,Beyond India,AmrishPuri
-8,Beyond India,Naseeruddin
-8,Beyond India,Nawazuddin
-8,Beyond India,Dhanush
-8,Beyond India,Priyanka
-8,Beyond India,Deepika
-8,Beyond India,Dimple
-8,Beyond India,AnupamKher
-8,Beyond India,AishwaryaRai
-8,Beyond India,Tabu
-8,Beyond India,Shabana
-8,Beyond India,FreidaPinto
-8,Beyond India,DevPatel
-8,Beyond India,AliFazal
-8,Beyond India,AdilHussain
-8,Beyond India,RadhikaApte
-8,Beyond India,NimratKaur
-8,Beyond India,Huma
-8,Beyond India,Sobhita
-8,Beyond India,ManojBajpay
-8,Beyond India,GulshanGrovr
-8,Beyond India,RahulBose
-8,Beyond India,RajkummarRao
-8,Beyond India,LisaRay
-8,Beyond India,NanditaDas
-8,Beyond India,RoshanSeth
-8,Beyond India,KabirBedi
-8,Beyond India,LeelaNaidu
-8,Beyond India,Poorna
-8,Beyond India,Rajinikanth
-8,Beyond India,Mallika
-8,Beyond India,AdarshGourav
-8,Beyond India,Kalki
-8,Beyond India,RahulKhanna
-8,Beyond India,SeemBiswas
-8,Beyond India,Ishaan
-9,Dance Dance,Govinda
-9,Dance Dance,Hrithik
-9,Dance Dance,MadhuriDixit
-9,Dance Dance,Prabhudeva
-9,Dance Dance,Rekha
-9,Dance Dance,FarahKhan
-9,Dance Dance,Helen
-9,Dance Dance,Katrina
-9,Dance Dance,NoraFatehi
-9,Dance Dance,Malaika
-9,Dance Dance,Urvashi
-9,Dance Dance,Samantha
-9,Dance Dance,SarojKhan
-9,Dance Dance,RemoDsouza
-9,Dance Dance,Bosco
-9,Dance Dance,GaneshA
-9,Dance Dance,Waheeda
-9,Dance Dance,Vyjayanthi
-9,Dance Dance,Bipasha
-9,Dance Dance,Raveena
-9,Dance Dance,Sridevi
-9,Dance Dance,AhmedKhan
-9,Dance Dance,Jeetendra
-9,Dance Dance,Mithun
-9,Dance Dance,Shiamak
-9,Dance Dance,Jacqueline
-9,Dance Dance,ShilpaShetty
-9,Dance Dance,DishaPatani
-9,Dance Dance,Hemamalini
-9,Dance Dance,AlluArjun
-9,Dance Dance,TigerShroff
-9,Dance Dance,MouniRoy
-9,Dance Dance,Rashmika
-9,Dance Dance,SaiPallavi
-9,Dance Dance,Ranveer
-9,Dance Dance,VarunDhawan
-9,Dance Dance,SunnyLeone
-9,Dance Dance,Mallika
-9,Dance Dance,KritiSanon
-9,Dance Dance,Kareena
-10,Bad Men,AmrishPuri
-10,Bad Men,Ajit
-10,Bad Men,Pran
-10,Bad Men,PremChopra
-10,Bad Men,AmjadKhan
-10,Bad Men,Danny
-10,Bad Men,Kulbhushan
-10,Bad Men,Ranjeet
-10,Bad Men,ShaktiKapoor
-10,Bad Men,AnupamKher
-10,Bad Men,AshutoshRana
-10,Bad Men,Naseeruddin
-10,Bad Men,PareshRawal
-10,Bad Men,ManojBajpay
-10,Bad Men,KayKayMenon
-10,Bad Men,BomanIrani
-10,Bad Men,Tigmanshu
-10,Bad Men,RonitRoy
-10,Bad Men,SanjayDutt
-10,Bad Men,ArjunRampal
-10,Bad Men,Shahrukh
-10,Bad Men,JohnAbraham
-10,Bad Men,Nawazuddin
-10,Bad Men,AkshayKhanna
-10,Bad Men,Randeep
-10,Bad Men,Riteish
-10,Bad Men,Gulshan
-10,Bad Men,RahulDev
-10,Bad Men,PrakashRaj
-10,Bad Men,BobChristo
-10,Bad Men,Sadashiv
-10,Bad Men,NanaPatekar
-10,Bad Men,VijayRaaz
-10,Bad Men,MacMohan
-10,Bad Men,Razamurad
-10,Bad Men,AjitVachani
-10,Bad Men,SharatSaxena
-10,Bad Men,MukeshRishi
-10,Bad Men,PuneetIssar
-10,Bad Men,DalipTahil
-10,Bad Men,GogaKapoor
-#,Screen Name,Key
-1,B&W era,DilipKumar
-1,B&W era,RajKapoor
-1,B&W era,DevAnand
-1,B&W era,Nargis
-1,B&W era,AshokKumar
-1,B&W era,Madhubala
-1,B&W era,WaheedaR
-1,B&W era,GuruDutt
-1,B&W era,Mehmood
-1,B&W era,KishoreKumar
-1,B&W era,RajendraK
-1,B&W era,Mumtaz
-1,B&W era,Vyjyantimala
-1,B&W era,ShammiKapoor
-1,B&W era,Suraiyya
-1,B&W era,LalitaPawar
-1,B&W era,RajKumar
-1,B&W era,BalrajSahni
-1,B&W era,BinaRai
-1,B&W era,Ifthekar
-1,B&W era,DaraSingh
-1,B&W era,GeetaBali
-1,B&W era,NirupaRoy
-1,B&W era,JohnnyWalker
-1,B&W era,Helen
-1,B&W era,MalaSinha
-1,B&W era,KaminiKaushl
-1,B&W era,FerozKhan
-1,B&W era,SunilDutt
-1,B&W era,DurgaKhote
-1,B&W era,RajeshKhanna
-1,B&W era,AshaParekh
-1,B&W era,SairaBanu
-1,B&W era,Nutan
-1,B&W era,Dharmendra
-1,B&W era,Pran
-1,B&W era,MeenaKumari
-1,B&W era,OmPrakash
-1,B&W era,TunTun
-1,B&W era,Premnath
-2,80s and 90s,AmitabhB
-2,80s and 90s,AnilKapoor
-2,80s and 90s,SunnyDeol
-2,80s and 90s,JackieShroff
-2,80s and 90s,Govinda
-2,80s and 90s,Mithun
-2,80s and 90s,RishiKapoor
-2,80s and 90s,SanjayDutt
-2,80s and 90s,ShashiKapoor
-2,80s and 90s,Jeetendra
-2,80s and 90s,Dharmendra
-2,80s and 90s,RajeshKhanna
-2,80s and 90s,VinodKhanna
-2,80s and 90s,KumarGaurav
-2,80s and 90s,DevAnand
-2,80s and 90s,Shatrughan
-2,80s and 90s,Naseeruddin
-2,80s and 90s,FerozKhan
-2,80s and 90s,RajKumar
-2,80s and 90s,AmritaSingh
-2,80s and 90s,MeenakshiS
-2,80s and 90s,HemaMalini
-2,80s and 90s,Rekha
-2,80s and 90s,Sridevi
-2,80s and 90s,JayaPrada
-2,80s and 90s,MadhuriDixit
-2,80s and 90s,DimpleK
-2,80s and 90s,PadminiK
-2,80s and 90s,ZeenatAman
-2,80s and 90s,SushmaSeth
-2,80s and 90s,SmitaPatil
-2,80s and 90s,JuhiChawla
-2,80s and 90s,NeetuSingh
-2,80s and 90s,BindiyaG
-2,80s and 90s,ShabanaAzmi
-2,80s and 90s,Raveena
-2,80s and 90s,Karisma
-2,80s and 90s,Manisha
-2,80s and 90s,SonaliBendre
-2,80s and 90s,DivyaBharti
-3,Millenial Stars,ShahrukhKhan
-3,Millenial Stars,SalmanKhan
-3,Millenial Stars,AamirKhan
-3,Millenial Stars,Hrithik
-3,Millenial Stars,AkshayKumar
-3,Millenial Stars,AjayDevgn
-3,Millenial Stars,SaifAliKhan
-3,Millenial Stars,AbhishekB
-3,Millenial Stars,RanbirKapoor
-3,Millenial Stars,ShahidKapoor
-3,Millenial Stars,JohnAbraham
-3,Millenial Stars,ArjunRampal
-3,Millenial Stars,VivekOberoi
-3,Millenial Stars,EmraanHashmi
-3,Millenial Stars,AbhayDeol
-3,Millenial Stars,BobbyDeol
-3,Millenial Stars,SunielShetty
-3,Millenial Stars,TussharK
-3,Millenial Stars,FardeenKhan
-3,Millenial Stars,UdayChopra
-3,Millenial Stars,KareenaK
-3,Millenial Stars,RaniMukerji
-3,Millenial Stars,PreityZinta
-3,Millenial Stars,AishwaryaRai
-3,Millenial Stars,KatrinaKaif
-3,Millenial Stars,PriyankaC
-3,Millenial Stars,LaraDutta
-3,Millenial Stars,BipashaBasu
-3,Millenial Stars,AmishaPatel
-3,Millenial Stars,EshaDeol
-3,Millenial Stars,DiaMirza
-3,Millenial Stars,SameeraReddy
-3,Millenial Stars,ShilpaShetty
-3,Millenial Stars,KonkonaSen
-3,Millenial Stars,Raveena
-3,Millenial Stars,Celina
-3,Millenial Stars,NehaDhupia
-3,Millenial Stars,Sonakshi
-3,Millenial Stars,Mallika
-3,Millenial Stars,Asin
-4,GenZ Stars,RanveerSingh
-4,GenZ Stars,Deepika
-4,GenZ Stars,AliaBhatt
-4,GenZ Stars,VarunDhawan
-4,GenZ Stars,SidharthM
-4,GenZ Stars,TigerShroff
-4,GenZ Stars,KritiSanon
-4,GenZ Stars,KartikAryan
-4,GenZ Stars,ShraddhaK
-4,GenZ Stars,AyushmannK
-4,GenZ Stars,RajkummarRao
-4,GenZ Stars,VickyKaushal
-4,GenZ Stars,JanhviKapoor
-4,GenZ Stars,SaraAliKhan
-4,GenZ Stars,AnanyaPandey
-4,GenZ Stars,KiaraAdvani
-4,GenZ Stars,BhumiP
-4,GenZ Stars,DishaPatani
-4,GenZ Stars,Parineeti
-4,GenZ Stars,Kangana
-4,GenZ Stars,Taapsee
-4,GenZ Stars,YamiGautam
-4,GenZ Stars,AhaanP
-4,GenZ Stars,NoraFatehi
-4,GenZ Stars,PankajT
-4,GenZ Stars,Nawazuddin
-4,GenZ Stars,AneetPadda
-4,GenZ Stars,RadhikaApte
-4,GenZ Stars,RakulPreet
-4,GenZ Stars,IshaanK
-4,GenZ Stars,MrunalThakur
-4,GenZ Stars,FatimaSana
-4,GenZ Stars,SanyaM
-4,GenZ Stars,LakshyaL
-4,GenZ Stars,SiddhantC
-4,GenZ Stars,SobhitaD
-4,GenZ Stars,TriptiDimri
-4,GenZ Stars,Sharvari
-4,GenZ Stars,MouniRoy
-4,GenZ Stars,SunnyLeone
-5,Golden Voices,LataDidi
-5,Golden Voices,AshaBhosle
-5,Golden Voices,KishoreKumar
-5,Golden Voices,MohdRafi
-5,Golden Voices,Mukesh
-5,Golden Voices,MannaDey
-5,Golden Voices,HemantKumar
-5,Golden Voices,TalatMehmood
-5,Golden Voices,AlkaYagnik
-5,Golden Voices,UditNarayan
-5,Golden Voices,KumarSanu
-5,Golden Voices,Abhijeet
-5,Golden Voices,SonuNigam
-5,Golden Voices,Shaan
-5,Golden Voices,KK
-5,Golden Voices,Hariharan
-6,South Heroes,Kamalhassan
-6,South Heroes,Chiranjeevi
-6,South Heroes,Nagarjuna
-6,South Heroes,Mammootty
-6,South Heroes,Mohanlal
-6,South Heroes,Dhanush
-6,South Heroes,Vijay
-6,South Heroes,Surya
-6,South Heroes,Prabhas
-6,South Heroes,AlluArjun
-6,South Heroes,RamCharan
-6,South Heroes,VarunTej
-6,South Heroes,FahadFaasil
-6,South Heroes,Rajkumar
-6,South Heroes,MaheshBabu
-6,South Heroes,NTRJR
-6,South Heroes,Balakrishna
-6,South Heroes,VijayD
-6,South Heroes,Nani
-6,South Heroes,SundeepK
-6,South Heroes,VishwakSen
-6,South Heroes,Ajit
-6,South Heroes,Vikram
-6,South Heroes,Dulqer
-6,South Heroes,Vishal
-6,South Heroes,SimbuTR
-6,South Heroes,ArvindSwamy
-6,South Heroes,Satyaraj
-6,South Heroes,Prithviraj
-6,South Heroes,NivinPauly
-6,South Heroes,SoubinShahir
-6,South Heroes,Yash
-6,South Heroes,KicchaSudeep
-6,South Heroes,Upendra
-6,South Heroes,RishabShetty
-6,South Heroes,Rakshit
-6,South Heroes,VSethupathi
-7,Filmy Family,Tiger
-7,Filmy Family,Kareena
-7,Filmy Family,Janhavi
-7,Filmy Family,Ranbir
-7,Filmy Family,Shanaya
-7,Filmy Family,Suhana
-7,Filmy Family,Varun
-7,Filmy Family,Sara
-7,Filmy Family,Ibrahim
-7,Filmy Family,Alia
-7,Filmy Family,Kajol
-7,Filmy Family,Sanjay
-7,Filmy Family,Abhishek
-7,Filmy Family,Esha
-7,Filmy Family,Bobby
-7,Filmy Family,Sunny
-7,Filmy Family,Twinkle
-7,Filmy Family,Farhan
-7,Filmy Family,Abhay
-7,Filmy Family,Athiya
-7,Filmy Family,Shraddha
-7,Filmy Family,Imran
-7,Filmy Family,Ananya
-7,Filmy Family,Junaid
-7,Filmy Family,Uday
-7,Filmy Family,Pooja
-7,Filmy Family,Hrithik
-7,Filmy Family,Soha
-7,Filmy Family,Karisma
-7,Filmy Family,Sonam
-7,Filmy Family,Sonakshi
-7,Filmy Family,Harshvardhan
-7,Filmy Family,Khushi
-7,Filmy Family,Ramcharan
-7,Filmy Family,Dulquer
-7,Filmy Family,NeilNitin
-7,Filmy Family,AlluArjun
-7,Filmy Family,Arjun
-7,Filmy Family,Tusshar
-7,Filmy Family,Fardeen
-5,Golden Voices,SukhwinderS
-5,Golden Voices,KavitaK
-5,Golden Voices,AnuradhaP
-5,Golden Voices,ShreyaG
-5,Golden Voices,Sunnidhi
-5,Golden Voices,NehaKakkar
-5,Golden Voices,ArijitSingh
-5,Golden Voices,JubinN
-5,Golden Voices,KailashKher
-5,Golden Voices,AdnanSami
-5,Golden Voices,MohitChauhan
-5,Golden Voices,Papon
-5,Golden Voices,BennyDayal
-5,Golden Voices,AnkitTiwari
-5,Golden Voices,KanikaKapoor
-5,Golden Voices,Palak
-5,Golden Voices,MonaliThakur
-5,Golden Voices,NeetiMohan
-5,Golden Voices,Chitra
-5,Golden Voices,SadhnaSargam
-5,Golden Voices,DarshanRaval
-5,Golden Voices,Vishal
-5,Golden Voices,Raghav
-5,Golden Voices,SidSriram
+﻿1,GenZ Stars,RanveerSingh
+1,GenZ Stars,Deepika
+1,GenZ Stars,AliaBhatt
+1,GenZ Stars,VarunDhawan
+1,GenZ Stars,SidharthM
+1,GenZ Stars,TigerShroff
+1,GenZ Stars,KritiSanon
+1,GenZ Stars,KartikAryan
+1,GenZ Stars,ShraddhaK
+1,GenZ Stars,AyushmannK
+1,GenZ Stars,RajkummarRao
+1,GenZ Stars,VickyKaushal
+1,GenZ Stars,JanhviKapoor
+1,GenZ Stars,SaraAliKhan
+1,GenZ Stars,AnanyaPandey
+1,GenZ Stars,KiaraAdvani
+1,GenZ Stars,BhumiP
+1,GenZ Stars,DishaPatani
+1,GenZ Stars,Parineeti
+1,GenZ Stars,Kangana
+1,GenZ Stars,Taapsee
+1,GenZ Stars,YamiGautam
+1,GenZ Stars,AhaanP
+1,GenZ Stars,NoraFatehi
+1,GenZ Stars,PankajT
+1,GenZ Stars,Nawazuddin
+1,GenZ Stars,AneetPadda
+1,GenZ Stars,RadhikaApte
+1,GenZ Stars,RakulPreet
+1,GenZ Stars,IshaanK
+1,GenZ Stars,MrunalThakur
+1,GenZ Stars,FatimaSana
+1,GenZ Stars,SanyaM
+1,GenZ Stars,LakshyaL
+1,GenZ Stars,SiddhantC
+1,GenZ Stars,SobhitaD
+1,GenZ Stars,TriptiDimri
+1,GenZ Stars,Sharvari
+1,GenZ Stars,MouniRoy
+1,GenZ Stars,SunnyLeone
+2,Millenial Stars,ShahrukhKhan
+2,Millenial Stars,SalmanKhan
+2,Millenial Stars,AamirKhan
+2,Millenial Stars,Hrithik
+2,Millenial Stars,AkshayKumar
+2,Millenial Stars,AjayDevgn
+2,Millenial Stars,SaifAliKhan
+2,Millenial Stars,AbhishekB
+2,Millenial Stars,RanbirKapoor
+2,Millenial Stars,ShahidKapoor
+2,Millenial Stars,JohnAbraham
+2,Millenial Stars,ArjunRampal
+2,Millenial Stars,VivekOberoi
+2,Millenial Stars,EmraanHashmi
+2,Millenial Stars,AbhayDeol
+2,Millenial Stars,BobbyDeol
+2,Millenial Stars,SunielShetty
+2,Millenial Stars,TussharK
+2,Millenial Stars,FardeenKhan
+2,Millenial Stars,UdayChopra
+2,Millenial Stars,KareenaK
+2,Millenial Stars,RaniMukerji
+2,Millenial Stars,PreityZinta
+2,Millenial Stars,AishwaryaRai
+2,Millenial Stars,KatrinaKaif
+2,Millenial Stars,PriyankaC
+2,Millenial Stars,LaraDutta
+2,Millenial Stars,BipashaBasu
+2,Millenial Stars,AmishaPatel
+2,Millenial Stars,EshaDeol
+2,Millenial Stars,DiaMirza
+2,Millenial Stars,SameeraReddy
+2,Millenial Stars,ShilpaShetty
+2,Millenial Stars,KonkonaSen
+2,Millenial Stars,Raveena
+2,Millenial Stars,Celina
+2,Millenial Stars,NehaDhupia
+2,Millenial Stars,Sonakshi
+2,Millenial Stars,Mallika
+2,Millenial Stars,Asin
+3,South Heroes,Kamalhassan
+3,South Heroes,Chiranjeevi
+3,South Heroes,Nagarjuna
+3,South Heroes,Mammootty
+3,South Heroes,Mohanlal
+3,South Heroes,Dhanush
+3,South Heroes,Vijay
+3,South Heroes,Surya
+3,South Heroes,Prabhas
+3,South Heroes,AlluArjun
+3,South Heroes,RamCharan
+3,South Heroes,VarunTej
+3,South Heroes,FahadFaasil
+3,South Heroes,Rajkumar
+3,South Heroes,MaheshBabu
+3,South Heroes,NTRJR
+3,South Heroes,Balakrishna
+3,South Heroes,VijayD
+3,South Heroes,Nani
+3,South Heroes,SundeepK
+3,South Heroes,VishwakSen
+3,South Heroes,Ajit
+3,South Heroes,Vikram
+3,South Heroes,Dulqer
+3,South Heroes,Vishal
+3,South Heroes,SimbuTR
+3,South Heroes,ArvindSwamy
+3,South Heroes,Satyaraj
+3,South Heroes,Prithviraj
+3,South Heroes,NivinPauly
+3,South Heroes,SoubinShahir
+3,South Heroes,Yash
+3,South Heroes,KicchaSudeep
+3,South Heroes,Upendra
+3,South Heroes,RishabShetty
+3,South Heroes,Rakshit
+3,South Heroes,VSethupathi
+3,South Heroes,PradeepR
+3,South Heroes,Karthi
+3,South Heroes,SidduJ
+4,Golden Voices,LataDidi
+4,Golden Voices,AshaBhosle
+4,Golden Voices,KishoreKumar
+4,Golden Voices,MohdRafi
+4,Golden Voices,Mukesh
+4,Golden Voices,MannaDey
+4,Golden Voices,HemantKumar
+4,Golden Voices,TalatMehmood
+4,Golden Voices,AlkaYagnik
+4,Golden Voices,UditNarayan
+4,Golden Voices,KumarSanu
+4,Golden Voices,Abhijeet
+4,Golden Voices,SonuNigam
+4,Golden Voices,Shaan
+4,Golden Voices,KK
+4,Golden Voices,Hariharan
+4,Golden Voices,SukhwinderS
+4,Golden Voices,KavitaK
+4,Golden Voices,AnuradhaP
+4,Golden Voices,ShreyaG
+4,Golden Voices,Sunnidhi
+4,Golden Voices,NehaKakkar
+4,Golden Voices,ArijitSingh
+4,Golden Voices,JubinN
+4,Golden Voices,KailashKher
+4,Golden Voices,AdnanSami
+4,Golden Voices,MohitChauhan
+4,Golden Voices,Papon
+4,Golden Voices,BennyDayal
+4,Golden Voices,AnkitTiwari
+4,Golden Voices,KanikaKapoor
+4,Golden Voices,Palak
+4,Golden Voices,MonaliThakur
+4,Golden Voices,NeetiMohan
+4,Golden Voices,Chitra
+4,Golden Voices,SadhnaSargam
+4,Golden Voices,DarshanRaval
+4,Golden Voices,Vishal
+4,Golden Voices,Raghav
+4,Golden Voices,SidSriram
+5,80s and 90s,AmitabhB
+5,80s and 90s,AnilKapoor
+5,80s and 90s,SunnyDeol
+5,80s and 90s,JackieShroff
+5,80s and 90s,Govinda
+5,80s and 90s,Mithun
+5,80s and 90s,RishiKapoor
+5,80s and 90s,SanjayDutt
+5,80s and 90s,ShashiKapoor
+5,80s and 90s,Jeetendra
+5,80s and 90s,Dharmendra
+5,80s and 90s,RajeshKhanna
+5,80s and 90s,VinodKhanna
+5,80s and 90s,KumarGaurav
+5,80s and 90s,DevAnand
+5,80s and 90s,Shatrughan
+5,80s and 90s,Naseeruddin
+5,80s and 90s,FerozKhan
+5,80s and 90s,RajKumar
+5,80s and 90s,AmritaSingh
+5,80s and 90s,MeenakshiS
+5,80s and 90s,HemaMalini
+5,80s and 90s,Rekha
+5,80s and 90s,Sridevi
+5,80s and 90s,JayaPrada
+5,80s and 90s,MadhuriDixit
+5,80s and 90s,DimpleK
+5,80s and 90s,PadminiK
+5,80s and 90s,ZeenatAman
+5,80s and 90s,SushmaSeth
+5,80s and 90s,SmitaPatil
+5,80s and 90s,JuhiChawla
+5,80s and 90s,NeetuSingh
+5,80s and 90s,BindiyaG
+5,80s and 90s,ShabanaAzmi
+5,80s and 90s,Raveena
+5,80s and 90s,Karisma
+5,80s and 90s,Manisha
+5,80s and 90s,SonaliBendre
+5,80s and 90s,DivyaBharti
+6,Filmy Family,Tiger
+6,Filmy Family,Kareena
+6,Filmy Family,Janhavi
+6,Filmy Family,Ranbir
+6,Filmy Family,Shanaya
+6,Filmy Family,Suhana
+6,Filmy Family,Varun
+6,Filmy Family,Sara
+6,Filmy Family,Ibrahim
+6,Filmy Family,Alia
+6,Filmy Family,Kajol
+6,Filmy Family,Sanjay
+6,Filmy Family,Abhishek
+6,Filmy Family,Esha
+6,Filmy Family,Bobby
+6,Filmy Family,Sunny
+6,Filmy Family,Twinkle
+6,Filmy Family,Farhan
+6,Filmy Family,Abhay
+6,Filmy Family,Athiya
+6,Filmy Family,Shraddha
+6,Filmy Family,Imran
+6,Filmy Family,Ananya
+6,Filmy Family,Junaid
+6,Filmy Family,Uday
+6,Filmy Family,Pooja
+6,Filmy Family,Hrithik
+6,Filmy Family,Soha
+6,Filmy Family,Karisma
+6,Filmy Family,Sonam
+6,Filmy Family,Sonakshi
+6,Filmy Family,Harshvardhan
+6,Filmy Family,Khushi
+6,Filmy Family,Ramcharan
+6,Filmy Family,Dulquer
+6,Filmy Family,NeilNitin
+6,Filmy Family,AlluArjun
+6,Filmy Family,Arjun
+6,Filmy Family,Tusshar
+6,Filmy Family,Fardeen
+7,Beyond India,Amitabh
+7,Beyond India,Irrfan
+7,Beyond India,ShashiKapoor
+7,Beyond India,Ompuri
+7,Beyond India,AmrishPuri
+7,Beyond India,Naseeruddin
+7,Beyond India,Nawazuddin
+7,Beyond India,Dhanush
+7,Beyond India,Priyanka
+7,Beyond India,Deepika
+7,Beyond India,Dimple
+7,Beyond India,AnupamKher
+7,Beyond India,AishwaryaRai
+7,Beyond India,Tabu
+7,Beyond India,Shabana
+7,Beyond India,FreidaPinto
+7,Beyond India,DevPatel
+7,Beyond India,AliFazal
+7,Beyond India,AdilHussain
+7,Beyond India,RadhikaApte
+7,Beyond India,NimratKaur
+7,Beyond India,Huma
+7,Beyond India,Sobhita
+7,Beyond India,ManojBajpay
+7,Beyond India,GulshanGrovr
+7,Beyond India,RahulBose
+7,Beyond India,RajkummarRao
+7,Beyond India,LisaRay
+7,Beyond India,NanditaDas
+7,Beyond India,RoshanSeth
+7,Beyond India,KabirBedi
+7,Beyond India,LeelaNaidu
+7,Beyond India,Poorna
+7,Beyond India,Rajinikanth
+7,Beyond India,Mallika
+7,Beyond India,AdarshGourav
+7,Beyond India,Kalki
+7,Beyond India,RahulKhanna
+7,Beyond India,SeemBiswas
+7,Beyond India,Ishaan
+8,Dance Dance,Govinda
+8,Dance Dance,Hrithik
+8,Dance Dance,MadhuriDixit
+8,Dance Dance,Prabhudeva
+8,Dance Dance,Rekha
+8,Dance Dance,FarahKhan
+8,Dance Dance,Helen
+8,Dance Dance,Katrina
+8,Dance Dance,NoraFatehi
+8,Dance Dance,Malaika
+8,Dance Dance,Urvashi
+8,Dance Dance,Samantha
+8,Dance Dance,SarojKhan
+8,Dance Dance,RemoDsouza
+8,Dance Dance,Bosco
+8,Dance Dance,GaneshA
+8,Dance Dance,Waheeda
+8,Dance Dance,Vyjayanthi
+8,Dance Dance,Bipasha
+8,Dance Dance,Raveena
+8,Dance Dance,Sridevi
+8,Dance Dance,AhmedKhan
+8,Dance Dance,Jeetendra
+8,Dance Dance,Mithun
+8,Dance Dance,Shiamak
+8,Dance Dance,Jacqueline
+8,Dance Dance,ShilpaShetty
+8,Dance Dance,DishaPatani
+8,Dance Dance,Hemamalini
+8,Dance Dance,AlluArjun
+8,Dance Dance,TigerShroff
+8,Dance Dance,MouniRoy
+8,Dance Dance,Rashmika
+8,Dance Dance,SaiPallavi
+8,Dance Dance,Ranveer
+8,Dance Dance,VarunDhawan
+8,Dance Dance,SunnyLeone
+8,Dance Dance,Mallika
+8,Dance Dance,KritiSanon
+8,Dance Dance,Kareena
+9,Bad Men,AmrishPuri
+9,Bad Men,Ajit
+9,Bad Men,Pran
+9,Bad Men,PremChopra
+9,Bad Men,AmjadKhan
+9,Bad Men,Danny
+9,Bad Men,Kulbhushan
+9,Bad Men,Ranjeet
+9,Bad Men,ShaktiKapoor
+9,Bad Men,AnupamKher
+9,Bad Men,AshutoshRana
+9,Bad Men,Naseeruddin
+9,Bad Men,PareshRawal
+9,Bad Men,ManojBajpay
+9,Bad Men,KayKayMenon
+9,Bad Men,BomanIrani
+9,Bad Men,Tigmanshu
+9,Bad Men,RonitRoy
+9,Bad Men,SanjayDutt
+9,Bad Men,ArjunRampal
+9,Bad Men,Shahrukh
+9,Bad Men,JohnAbraham
+9,Bad Men,Nawazuddin
+9,Bad Men,AkshayKhanna
+9,Bad Men,Randeep
+9,Bad Men,Riteish
+9,Bad Men,Gulshan
+9,Bad Men,RahulDev
+9,Bad Men,PrakashRaj
+9,Bad Men,BobChristo
+9,Bad Men,Sadashiv
+9,Bad Men,NanaPatekar
+9,Bad Men,VijayRaaz
+9,Bad Men,MacMohan
+9,Bad Men,Razamurad
+9,Bad Men,AjitVachani
+9,Bad Men,SharatSaxena
+9,Bad Men,MukeshRishi
+9,Bad Men,PuneetIssar
+9,Bad Men,DalipTahil
+9,Bad Men,GogaKapoor
+10,B&W era,DilipKumar
+10,B&W era,RajKapoor
+10,B&W era,DevAnand
+10,B&W era,Nargis
+10,B&W era,AshokKumar
+10,B&W era,Madhubala
+10,B&W era,WaheedaR
+10,B&W era,GuruDutt
+10,B&W era,Mehmood
+10,B&W era,KishoreKumar
+10,B&W era,RajendraK
+10,B&W era,Mumtaz
+10,B&W era,Vyjyantimala
+10,B&W era,ShammiKapoor
+10,B&W era,Suraiyya
+10,B&W era,LalitaPawar
+10,B&W era,RajKumar
+10,B&W era,BalrajSahni
+10,B&W era,BinaRai
+10,B&W era,Ifthekar
+10,B&W era,DaraSingh
+10,B&W era,GeetaBali
+10,B&W era,NirupaRoy
+10,B&W era,JohnnyWalker
+10,B&W era,Helen
+10,B&W era,MalaSinha
+10,B&W era,KaminiKaushl
+10,B&W era,FerozKhan
+10,B&W era,SunilDutt
+10,B&W era,DurgaKhote
+10,B&W era,RajeshKhanna
+10,B&W era,AshaParekh
+10,B&W era,SairaBanu
+10,B&W era,Nutan
+10,B&W era,Dharmendra
+10,B&W era,Pran
+10,B&W era,MeenaKumari
+10,B&W era,OmPrakash
+10,B&W era,TunTun
+10,B&W era,Premnath

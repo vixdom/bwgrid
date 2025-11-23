@@ -83,11 +83,11 @@ class FilmReelPainter extends CustomPainter {
 
     // Shadow layers (straight ends)
     final shadow1 = Paint()
-      ..color = Colors.black.withOpacity(0.09)
+      ..color = Colors.black.withValues(alpha: 0.09)
       ..style = PaintingStyle.fill
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6.0);
     final shadow2 = Paint()
-      ..color = Colors.black.withOpacity(0.05)
+      ..color = Colors.black.withValues(alpha: 0.05)
       ..style = PaintingStyle.fill
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12.0);
 
@@ -97,20 +97,20 @@ class FilmReelPainter extends CustomPainter {
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [
-          baseColor.withOpacity(isActive ? 0.45 : 0.40),
-          baseColor.withOpacity(isActive ? 0.35 : 0.30),
+          baseColor.withValues(alpha: isActive ? 0.45 : 0.40),
+          baseColor.withValues(alpha: isActive ? 0.35 : 0.30),
         ],
       ).createShader(rect);
 
     // Inner highlight line
     final innerLine = Paint()
-      ..color = Colors.white.withOpacity(0.075)
+      ..color = Colors.white.withValues(alpha: 0.075)
       ..style = PaintingStyle.stroke
       ..strokeWidth = math.max(1.0, stripHeight * 0.04);
 
     // Border
     final border = Paint()
-      ..color = Colors.black.withOpacity(0.11)
+      ..color = Colors.black.withValues(alpha: 0.11)
       ..style = PaintingStyle.stroke
       ..strokeWidth = math.max(1.0, stripHeight * 0.03);
 
@@ -135,11 +135,11 @@ class FilmReelPainter extends CustomPainter {
 
     // Frame dividers at exact cell boundaries
     final dividerCore = Paint()
-      ..color = Colors.black.withOpacity(0.175)
+      ..color = Colors.black.withValues(alpha: 0.175)
       ..strokeWidth = math.max(2.0, stripHeight * 0.08)
       ..strokeCap = StrokeCap.butt;
     final dividerHighlight = Paint()
-      ..color = Colors.white.withOpacity(0.08)
+      ..color = Colors.white.withValues(alpha: 0.08)
       ..strokeWidth = math.max(1.0, stripHeight * 0.035)
       ..strokeCap = StrokeCap.butt;
     for (int i = 1; i < frameCount; i++) {
@@ -152,10 +152,10 @@ class FilmReelPainter extends CustomPainter {
 
     // Perforations along both long edges
     final perfPaint = Paint()
-      ..color = Colors.black.withOpacity(0.20)
+      ..color = Colors.black.withValues(alpha: 0.20)
       ..style = PaintingStyle.fill;
     final perfShadow = Paint()
-      ..color = Colors.black.withOpacity(0.09)
+      ..color = Colors.black.withValues(alpha: 0.09)
       ..style = PaintingStyle.fill
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.2);
     final perfW = stripHeight * 0.10;
@@ -176,7 +176,7 @@ class FilmReelPainter extends CustomPainter {
     // Subtle grain within strip bounds
     final random = math.Random(42);
     final grain = Paint()
-      ..color = Colors.white.withOpacity(0.025)
+      ..color = Colors.white.withValues(alpha: 0.025)
       ..style = PaintingStyle.fill;
     final grains = (stripLength * stripHeight / 2200).round().clamp(10, 60);
     for (int i = 0; i < grains; i++) {
@@ -189,7 +189,7 @@ class FilmReelPainter extends CustomPainter {
     // Active glow
     if (isActive) {
       final glow = Paint()
-        ..color = baseColor.withOpacity(0.09)
+        ..color = baseColor.withValues(alpha: 0.09)
         ..style = PaintingStyle.stroke
         ..strokeWidth = stripHeight * 0.28
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6.0);
@@ -197,285 +197,6 @@ class FilmReelPainter extends CustomPainter {
     }
 
     canvas.restore();
-  }
-
-  Path _createStripPath(List<Offset> points) {
-    final path = Path();
-    
-    for (int i = 0; i < points.length; i++) {
-      final center = _cellCenter(points[i]);
-      
-      if (i == 0) {
-        path.moveTo(center.dx, center.dy);
-      } else {
-        // Create smooth curves for direction changes
-        final prevCenter = _cellCenter(points[i - 1]);
-        final dx = center.dx - prevCenter.dx;
-        final dy = center.dy - prevCenter.dy;
-        
-        // If it's a diagonal or significant direction change, add a curve
-        if (dx.abs() > 0 && dy.abs() > 0) {
-          final controlPoint = Offset(
-            prevCenter.dx + dx * 0.5,
-            prevCenter.dy + dy * 0.5,
-          );
-          path.quadraticBezierTo(controlPoint.dx, controlPoint.dy, center.dx, center.dy);
-        } else {
-          path.lineTo(center.dx, center.dy);
-        }
-      }
-    }
-    
-    return path;
-  }
-
-  void _drawStripBackground(Canvas canvas, Path stripPath, double stripWidth, Color baseColor, bool isActive) {
-    // Multi-layer shadow for depth
-    final shadowLayers = [
-      (offset: const Offset(0, 2), blur: 3.0, alpha: 0.1),
-      (offset: const Offset(0, 4), blur: 6.0, alpha: 0.05),
-    ];
-
-    for (final layer in shadowLayers) {
-      final shadowPaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round
-        ..strokeWidth = stripWidth
-        ..color = Colors.black.withOpacity(layer.alpha)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, layer.blur);
-
-      canvas.save();
-      canvas.translate(layer.offset.dx, layer.offset.dy);
-      canvas.drawPath(stripPath, shadowPaint);
-      canvas.restore();
-    }
-
-    // Main film strip with gradient
-    final stripPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..strokeWidth = stripWidth
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          baseColor.withOpacity(isActive ? 0.425 : 0.375),
-          baseColor.withOpacity(isActive ? 0.35 : 0.30),
-          baseColor.withOpacity(isActive ? 0.40 : 0.35),
-        ],
-        stops: const [0.0, 0.5, 1.0],
-      ).createShader(Rect.fromLTWH(0, 0, stripWidth, stripWidth));
-
-    canvas.drawPath(stripPath, stripPaint);
-
-    // Inner highlight for 3D effect
-    final highlightPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..strokeWidth = stripWidth * 0.6
-      ..color = Colors.white.withOpacity(0.075);
-
-    canvas.drawPath(stripPath, highlightPaint);
-
-    // Outer glow for active strips
-    if (isActive) {
-      final glowPaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round
-        ..strokeWidth = stripWidth * 1.3
-        ..color = baseColor.withOpacity(0.10)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.0);
-
-      canvas.drawPath(stripPath, glowPaint);
-    }
-  }
-
-  void _drawFrameDividers(Canvas canvas, List<Offset> points, double stripWidth, Color baseColor) {
-    // Two-pass divider: dark core + subtle highlight to mimic bevel
-    final dividerCore = Paint()
-      ..color = Colors.black.withOpacity(0.175)
-      ..strokeWidth = math.max(2.0, stripWidth * 0.08)
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke;
-
-    final dividerHighlight = Paint()
-      ..color = Colors.white.withOpacity(0.09)
-      ..strokeWidth = math.max(1.0, stripWidth * 0.035)
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke;
-
-    // Draw dividers between each frame (letter)
-    for (int i = 1; i < points.length; i++) {
-      final prevCenter = _cellCenter(points[i - 1]);
-      final currentCenter = _cellCenter(points[i]);
-      
-      // Calculate the midpoint between letters
-      final midPoint = Offset(
-        (prevCenter.dx + currentCenter.dx) / 2,
-        (prevCenter.dy + currentCenter.dy) / 2,
-      );
-
-      // Calculate perpendicular direction for the divider
-      final direction = currentCenter - prevCenter;
-      final length = direction.distance;
-      if (length > 0) {
-        final normalized = direction / length;
-        final perpendicular = Offset(-normalized.dy, normalized.dx);
-        
-        final dividerStart = midPoint + perpendicular * (stripWidth * 0.45);
-        final dividerEnd = midPoint - perpendicular * (stripWidth * 0.45);
-
-        // Dark core line
-        canvas.drawLine(dividerStart, dividerEnd, dividerCore);
-
-        // Subtle highlight nudged toward one side for a beveled look
-        final nudge = perpendicular * (stripWidth * 0.02);
-        canvas.drawLine(dividerStart + nudge, dividerEnd + nudge, dividerHighlight);
-      }
-    }
-  }
-
-  /// Draw per-letter "aperture" rectangles on the strip so frames are obvious
-  void _drawFrameApertures(Canvas canvas, List<Offset> points, double stripWidth, Color baseColor) {
-    // Aperture is a rounded-rect centered at each letter, rotated along the local direction
-    final fill = Paint()
-      ..color = Colors.black.withOpacity(0.05)
-      ..style = PaintingStyle.fill;
-
-    final border = Paint()
-      ..color = Colors.black.withOpacity(0.175)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = math.max(1.0, stripWidth * 0.035);
-
-    final innerHighlight = Paint()
-      ..color = Colors.white.withOpacity(0.05)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = math.max(0.8, stripWidth * 0.02);
-
-    for (int i = 0; i < points.length; i++) {
-      final center = _cellCenter(points[i]);
-
-      // Determine local direction vector using neighbors
-      Offset dir;
-      if (points.length == 1) {
-        dir = const Offset(1, 0); // arbitrary
-      } else if (i == 0) {
-        dir = points[i + 1] - points[i];
-      } else if (i == points.length - 1) {
-        dir = points[i] - points[i - 1];
-      } else {
-        final d1 = points[i] - points[i - 1];
-        final d2 = points[i + 1] - points[i];
-        dir = Offset(d1.dx + d2.dx, d1.dy + d2.dy);
-      }
-
-      // Convert grid-space direction (row, col) to canvas direction (x=col, y=row)
-      final canvasDir = Offset(dir.dy, dir.dx);
-      final len = canvasDir.distance;
-      final nd = len > 0 ? canvasDir / len : const Offset(1, 0);
-      final angle = math.atan2(nd.dy, nd.dx);
-
-      // Aperture size proportional to strip width
-      final apertureW = stripWidth * 0.70;
-      final apertureH = stripWidth * 0.60;
-      final rrect = RRect.fromRectAndRadius(
-        Rect.fromCenter(center: Offset.zero, width: apertureW, height: apertureH),
-        Radius.circular(stripWidth * 0.10),
-      );
-
-      canvas.save();
-      canvas.translate(center.dx, center.dy);
-      canvas.rotate(angle);
-
-      // Fill
-      canvas.drawRRect(rrect, fill);
-      // Border
-      canvas.drawRRect(rrect, border);
-      // Inner highlight inset a touch
-      final inset = stripWidth * 0.05;
-      final inner = RRect.fromRectAndRadius(
-        Rect.fromCenter(center: Offset.zero, width: apertureW - inset, height: apertureH - inset),
-        Radius.circular(stripWidth * 0.08),
-      );
-      canvas.drawRRect(inner, innerHighlight);
-
-      canvas.restore();
-    }
-  }
-
-  void _drawContinuousPerforations(Canvas canvas, Path stripPath, double stripWidth) {
-    final perfPaint = Paint()
-      ..color = Colors.black.withOpacity(0.20)
-      ..style = PaintingStyle.fill;
-
-    final shadowPaint = Paint()
-      ..color = Colors.black.withOpacity(0.075)
-      ..style = PaintingStyle.fill
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.0);
-
-    final perfWidth = stripWidth * 0.08;
-    final perfHeight = stripWidth * 0.15;
-    final perfSpacing = cellSize * 0.25;
-
-    // Draw perforations along both edges of the strip
-    for (final pathMetric in stripPath.computeMetrics()) {
-      for (double distance = 0; distance < pathMetric.length; distance += perfSpacing) {
-        final tangent = pathMetric.getTangentForOffset(distance);
-        if (tangent == null) continue;
-
-        final position = tangent.position;
-        final direction = tangent.vector;
-        final length = direction.distance;
-        final normalizedDirection = length > 0 ? direction / length : Offset.zero;
-        final perpendicular = Offset(-normalizedDirection.dy, normalizedDirection.dx);
-
-        // Draw perforations on both edges
-        for (final side in [-1, 1]) {
-          final perfCenter = position + perpendicular * (stripWidth * 0.35 * side);
-          
-          final perfRect = Rect.fromCenter(
-            center: perfCenter,
-            width: perfWidth,
-            height: perfHeight,
-          );
-
-          // Shadow
-          canvas.drawRRect(
-            RRect.fromRectAndRadius(perfRect.translate(0.5, 0.5), const Radius.circular(1.0)),
-            shadowPaint,
-          );
-
-          // Main perforation
-          canvas.drawRRect(
-            RRect.fromRectAndRadius(perfRect, const Radius.circular(1.0)),
-            perfPaint,
-          );
-        }
-      }
-    }
-  }
-
-  void _drawStripTexture(Canvas canvas, Path stripPath, double stripWidth) {
-    // Add subtle film grain
-    final random = math.Random(42);
-    final grainPaint = Paint()
-      ..color = Colors.white.withOpacity(0.025)
-      ..style = PaintingStyle.fill;
-
-    final bounds = stripPath.getBounds();
-    final grainCount = (bounds.width * bounds.height / 2000).round().clamp(10, 50);
-
-    for (int i = 0; i < grainCount; i++) {
-      final x = bounds.left + random.nextDouble() * bounds.width;
-      final y = bounds.top + random.nextDouble() * bounds.height;
-      final grainSize = random.nextDouble() * 0.8 + 0.3;
-      
-      canvas.drawCircle(Offset(x, y), grainSize, grainPaint);
-    }
   }
 
   /// Draw a single film frame over one letter
@@ -505,7 +226,7 @@ class FilmReelPainter extends CustomPainter {
 
   void _drawFrameShadow(Canvas canvas, Rect frameRect) {
     final shadowPaint = Paint()
-      ..color = Colors.black.withOpacity(0.15)
+      ..color = Colors.black.withValues(alpha: 0.15)
       ..style = PaintingStyle.fill
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.0);
 
@@ -528,9 +249,9 @@ class FilmReelPainter extends CustomPainter {
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [
-          baseColor.withOpacity(isActive ? 0.40 : 0.35),
-          baseColor.withOpacity(isActive ? 0.30 : 0.25),
-          baseColor.withOpacity(isActive ? 0.35 : 0.30),
+          baseColor.withValues(alpha: isActive ? 0.40 : 0.35),
+          baseColor.withValues(alpha: isActive ? 0.30 : 0.25),
+          baseColor.withValues(alpha: isActive ? 0.35 : 0.30),
         ],
         stops: const [0.0, 0.5, 1.0],
       ).createShader(frameRect);
@@ -542,7 +263,7 @@ class FilmReelPainter extends CustomPainter {
 
     // Add subtle inner highlight
     final highlightPaint = Paint()
-      ..color = Colors.white.withOpacity(0.10)
+      ..color = Colors.white.withValues(alpha: 0.10)
       ..style = PaintingStyle.fill;
 
     final highlightRect = Rect.fromCenter(
@@ -560,11 +281,11 @@ class FilmReelPainter extends CustomPainter {
   void _drawFramePerforations(Canvas canvas, Rect frameRect, Color baseColor) {
     final perfSize = frameRect.width * 0.08;
     final perfPaint = Paint()
-      ..color = Colors.black.withOpacity(0.20)
+      ..color = Colors.black.withValues(alpha: 0.20)
       ..style = PaintingStyle.fill;
 
     final shadowPaint = Paint()
-      ..color = Colors.black.withOpacity(0.10)
+      ..color = Colors.black.withValues(alpha: 0.10)
       ..style = PaintingStyle.fill
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.0);
 
@@ -617,7 +338,7 @@ class FilmReelPainter extends CustomPainter {
 
   void _drawFrameBorder(Canvas canvas, Rect frameRect, Color baseColor, bool isActive) {
     final borderPaint = Paint()
-      ..color = baseColor.withOpacity(isActive ? 0.45 : 0.40)
+      ..color = baseColor.withValues(alpha: isActive ? 0.45 : 0.40)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.0;
 
@@ -629,7 +350,7 @@ class FilmReelPainter extends CustomPainter {
     // Add subtle outer glow for active frames
     if (isActive) {
       final glowPaint = Paint()
-        ..color = baseColor.withOpacity(0.15)
+        ..color = baseColor.withValues(alpha: 0.15)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 4.0
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0);

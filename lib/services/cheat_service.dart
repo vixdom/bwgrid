@@ -32,47 +32,75 @@ class CheatService {
   }
 
   Future<void> _showCodeDialog(BuildContext context) async {
-    final controller = TextEditingController();
-    await showDialog<void>(
+    final entered = await showDialog<String>(
       context: context,
       barrierDismissible: true,
-      builder: (context) => AlertDialog(
-        title: const Text('Enter cheat code'),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          decoration: const InputDecoration(hintText: '6-digit code'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              final entered = controller.text.trim();
-              Navigator.of(context).pop();
-              if (entered == _cheatCode) {
-                await const GamePersistence().setAllScreensUnlocked(true);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('All screens unlocked!')),
-                  );
-                }
-              } else {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Incorrect code')), 
-                  );
-                }
-              }
-            },
-            child: const Text('Unlock'),
-          ),
-        ],
-      ),
+      builder: (dialogContext) => const _CheatCodeDialog(),
     );
-    controller.dispose();
+
+    if (!context.mounted || entered == null) return;
+
+    if (entered == _cheatCode) {
+      await const GamePersistence().setAllScreensUnlocked(true);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('All screens unlocked!')),
+        );
+      }
+    } else {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Incorrect code')),
+        );
+      }
+    }
+  }
+}
+
+class _CheatCodeDialog extends StatefulWidget {
+  const _CheatCodeDialog();
+
+  @override
+  State<_CheatCodeDialog> createState() => _CheatCodeDialogState();
+}
+
+class _CheatCodeDialogState extends State<_CheatCodeDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Enter cheat code'),
+      content: TextField(
+        controller: _controller,
+        keyboardType: TextInputType.number,
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        decoration: const InputDecoration(hintText: '6-digit code'),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () {
+            Navigator.of(context).pop(_controller.text.trim());
+          },
+          child: const Text('Unlock'),
+        ),
+      ],
+    );
   }
 }

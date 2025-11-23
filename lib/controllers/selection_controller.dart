@@ -354,8 +354,6 @@ class SelectionController extends ChangeNotifier {
 
   bool _isAlreadyFound(String word) => found.any((f) => f.word == word);
 
-  bool _isCellInFoundPaths(Offset cell) => found.any((fp) => fp.points.contains(cell));
-
   Color _assignColorForWord(String word) {
     final color = _palette[_nextColorIndex % _palette.length];
     _nextColorIndex++;
