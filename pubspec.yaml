@@ -38,7 +38,7 @@ dev_dependencies:
 flutter_icons:                      # 👈 Configuration for flutter_launcher_icons
   android: true
   ios: true
-  image_path: "assets/icons/appstore.png"   # 👈 your base logo (replace path if needed)
+  image_path: "assets/icons/appstore.png"   # Use the provided hi-res PNG
   adaptive_icon_background: "#ffffff"       # (optional) for Android adaptive icons
   remove_alpha_ios: true                    # recommended for iOS icons
 

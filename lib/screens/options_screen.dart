@@ -728,64 +728,71 @@ class _ThemeSwatch extends StatelessWidget {
     final primary = td.colorScheme.primary; // ignore: unused_local_variable
     final secondary = td.colorScheme.secondary; // ignore: unused_local_variable
     final surface = Theme.of(context).colorScheme.surface;
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeOut,
-      decoration: BoxDecoration(
-        color: surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: selected
-              ? Theme.of(context).colorScheme.primary
-              : Theme.of(context).dividerColor,
-          width: selected ? 2 : 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+    return SizedBox(
+      height: 80, // Fixed height for all theme buttons
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+        decoration: BoxDecoration(
+          color: surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: selected
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).dividerColor,
+            width: selected ? 2 : 1,
           ),
-        ],
-      ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        if (subtitle != null)
-                          Opacity(
-                            opacity: 0.8,
-                            child: Text(
-                              subtitle!,
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  AnimatedOpacity(
-                    duration: const Duration(milliseconds: 200),
-                    opacity: selected ? 1 : 0,
-                    child: const Icon(Icons.check_circle, color: Colors.green),
-                  ),
-                ],
-              ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
           ],
+        ),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center, // Center content vertically
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min, // Take minimum vertical space
+                        children: [
+                          Text(
+                            title,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          if (subtitle != null)
+                            Opacity(
+                              opacity: 0.8,
+                              child: Text(
+                                subtitle!,
+                                style: Theme.of(context).textTheme.bodySmall,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    AnimatedOpacity(
+                      duration: const Duration(milliseconds: 200),
+                      opacity: selected ? 1 : 0,
+                      child: const Icon(Icons.check_circle, color: Colors.green),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
