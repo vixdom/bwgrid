@@ -203,6 +203,9 @@ class _ProgressPathScreenState extends State<ProgressPathScreen>
                 // Show confirmation dialog for completed screens
                 if (isPast) {
                   _showReplayConfirmation(index);
+                } else if (_allUnlocked && isFuture) {
+                  // Jump straight to the unlocked future screen
+                  _dismissScreen(selectedStageIndex: index, resumeGameplay: true);
                 } else {
                   // Current screen - just dismiss and continue
                   _dismissScreen(resumeGameplay: true);

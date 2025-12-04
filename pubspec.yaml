@@ -2,7 +2,7 @@ name: bwgrid
 description: "An Indian movie themed word search game"
 publish_to: 'none'
 
-version: 2.3.0+3
+version: 2.5.0+1
 
 environment:
   sdk: ^3.8.1

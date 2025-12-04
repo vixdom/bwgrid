@@ -4,6 +4,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:glassmorphism/glassmorphism.dart';
 
 import 'game_screen.dart' as game;
+import 'daily_challenge_screen.dart';
 import '../services/cheat_service.dart';
 
 // Quick-tweak config
@@ -106,10 +107,12 @@ class WelcomeScreen extends StatelessWidget {
                             _SecondaryButton(
                               label: 'Daily Challenge',
                               icon: Icons.flash_on,
-                              showComingSoon: true,
-                              onDisabledTap: () {
-                                // Register a tap towards the cheat sequence
-                                CheatService.instance.registerDailyTap(context);
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => const DailyChallengeScreen(),
+                                  ),
+                                );
                               },
                             ),
                             const SizedBox(height: 16),

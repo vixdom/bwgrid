@@ -20,6 +20,7 @@ import '../models/stage_scene.dart';
 import '../services/game_persistence.dart';
 import '../services/rating_service.dart';
 import '../constants/app_themes.dart';
+import '../services/wallet_service.dart';
 
 enum _SecretCorner { topRight, bottomRight, bottomLeft, topLeft }
 
@@ -35,7 +36,6 @@ class GameScreen extends StatefulWidget {
 class _GameScreenState extends State<GameScreen>
   with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   // Optimized state management with ValueNotifiers to reduce rebuilds
-  late final ValueNotifier<int> _scoreNotifier;
   late final ValueNotifier<bool> _hintUnlockedNotifier;
   late final ValueNotifier<bool> _showConfettiNotifier;
   late final ValueNotifier<SelectionController?> _selectionNotifier;
@@ -182,7 +182,6 @@ class _GameScreenState extends State<GameScreen>
     _showProgressPath = widget.forceShowProgressPath;
     _gameScrollController = ScrollController();
     // Initialize ValueNotifiers
-    _scoreNotifier = ValueNotifier<int>(0);
     _hintUnlockedNotifier = ValueNotifier<bool>(false);
     _showConfettiNotifier = ValueNotifier<bool>(false);
     _selectionNotifier = ValueNotifier<SelectionController?>(null);
@@ -285,7 +284,7 @@ class _GameScreenState extends State<GameScreen>
       // Update score using ValueNotifier
       _changeScore(10);
       await gc.onWordFound();
-      if (!_hintUnlocked && score >= 20) {
+      if (!_hintUnlocked && WalletService.instance.tickets >= 20) {
         _hintUnlockedNotifier.value = true;
         unawaited(gc.feedback.playClue());
       }
@@ -341,7 +340,6 @@ class _GameScreenState extends State<GameScreen>
   }
 
   // Optimized getters using ValueNotifiers
-  int get score => _scoreNotifier.value;
   bool get _hintUnlocked => _hintUnlockedNotifier.value;
   SceneDefinition get _currentScene => _sceneSchedule[_currentSceneIndex];
   bool get _isHiddenScene => _currentScene.mode == SceneMode.hiddenClues;
@@ -366,10 +364,16 @@ class _GameScreenState extends State<GameScreen>
   }
 
   void _changeScore(int delta, {bool allowHintReminder = true}) {
-    final prev = _scoreNotifier.value;
-    final next = max(0, prev + delta);
+    final wallet = WalletService.instance;
+    final prev = wallet.tickets;
+    if (delta > 0) {
+      wallet.addTickets(delta);
+    } else {
+      wallet.spendTickets(delta.abs());
+    }
+    final next = wallet.tickets;
+
     final crossedThreshold = delta > 0 && allowHintReminder && !_hasShownHintReminder && prev < 20 && next >= 20;
-    _scoreNotifier.value = next;
 
     if (crossedThreshold) {
       _hasShownHintReminder = true;
@@ -466,7 +470,6 @@ class _GameScreenState extends State<GameScreen>
       grid = rows;
       _sel = controller;
       _selectionNotifier.value = controller;
-      _scoreNotifier.value = state.score;
       _hintUnlockedNotifier.value = state.hintUnlocked;
       _sceneDurationSeconds = state.sceneDurationSeconds ??
           _sceneSchedule[state.sceneIndex].timeLimit?.inSeconds;
@@ -475,7 +478,7 @@ class _GameScreenState extends State<GameScreen>
       _sceneActive = state.sceneActive && !_timeExpired && !(controller.isComplete);
       _metronomeBeat = 0;
       _showProgressPath = true;
-      _hasShownHintReminder = state.score >= 20;
+      _hasShownHintReminder = WalletService.instance.tickets >= 20;
       _dangerHapticTriggered = false;
     });
 
@@ -605,7 +608,7 @@ class _GameScreenState extends State<GameScreen>
 
       _selectionNotifier.value = controller;
 
-      if (!_hintUnlocked && score >= 20) {
+      if (!_hintUnlocked && WalletService.instance.tickets >= 20) {
         _hintUnlockedNotifier.value = true;
       }
 
@@ -654,7 +657,7 @@ class _GameScreenState extends State<GameScreen>
       usedAnswers: List<String>.from(_usedAnswers),
       revealedClues: List<String>.from(_revealedClues),
       foundWords: controller.found.map((fp) => fp.word).toList(growable: false),
-      score: score,
+      score: WalletService.instance.tickets,
       hintUnlocked: _hintUnlocked,
       sceneActive: _sceneActive,
       remainingSeconds: _remainingSeconds,
@@ -1810,15 +1813,14 @@ class _GameScreenState extends State<GameScreen>
             onPressed: () => Navigator.of(context).pop(),
           ),
         ),
-        title: ValueListenableBuilder<int>(
-          valueListenable: _scoreNotifier,
-          builder: (context, score, child) => _GoldenTicket(score: score),
+        title: Consumer<WalletService>(
+          builder: (context, wallet, child) => _GoldenTicket(score: wallet.tickets),
         ),
         centerTitle: true,
         actions: [
-          ValueListenableBuilder<int>(
-            valueListenable: _scoreNotifier,
-            builder: (context, score, child) {
+          Consumer<WalletService>(
+            builder: (context, wallet, child) {
+              final score = wallet.tickets;
               final settings = context.watch<FeedbackSettings>();
               final canUseHints = settings.hintsEnabled && score >= 20 && _sel != null && _sceneActive && !_timeExpired;
                 final theme = Theme.of(context);
@@ -2013,113 +2015,113 @@ class _GameScreenState extends State<GameScreen>
                         // Selection preview listens directly to SelectionController changes
                         if (_sel != null)
                           AnimatedBuilder(
-                animation: _sel!,
-                builder: (context, _) {
-                  if (!_sel!.hasActive || _sel!.activeString.isNotEmpty == false) {
-                    return const SizedBox(height: 35);
-                  }
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 6, bottom: 3),
-                    child: Center(
-                      child: AnimatedScale(
-                        duration: const Duration(milliseconds: 120),
-                        scale: 1.0,
-                        child: AnimatedOpacity(
-                          key: ValueKey<String>('preview_${_sel!.activeString}'),
-                          duration: const Duration(milliseconds: 120),
-                          opacity: 1.0,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF2C2C2E),
-                              borderRadius: BorderRadius.circular(8),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.3),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 3),
-                                  spreadRadius: 0,
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 10,
-                                  height: 29,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF1C1C1E),
-                                    borderRadius: const BorderRadius.horizontal(left: Radius.circular(4)),
-                                    border: Border.all(color: Colors.black38, width: 1),
-                                  ),
-                                  child: Center(
-                                    child: Container(
-                                      width: 1.2,
-                                      height: 19,
-                                      color: Colors.white24,
-                                    ),
-                                  ),
-                                ),
-                                Row(
-                                  children: _sel!.activeString.split('').map((letter) {
-                                    return Container(
-                                      width: 22,
-                                      height: 29,
-                                      margin: const EdgeInsets.symmetric(horizontal: 1),
-                                      decoration: BoxDecoration(
-                                        color: _sel!.activeColor,
-                                        border: Border.all(
-                                          color: _sel!.activeColor!.computeLuminance() > 0.5
-                                              ? Colors.black26
-                                              : Colors.white24,
-                                          width: 1,
+                            animation: _sel!,
+                            builder: (context, _) {
+                              if (!_sel!.hasActive || _sel!.activeString.isEmpty) {
+                                return const SizedBox(height: 35);
+                              }
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 6, bottom: 3),
+                                child: Center(
+                                  child: AnimatedScale(
+                                    duration: const Duration(milliseconds: 120),
+                                    scale: 1.0,
+                                    child: AnimatedOpacity(
+                                      key: ValueKey<String>('preview_${_sel!.activeString}'),
+                                      duration: const Duration(milliseconds: 120),
+                                      opacity: 1.0,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF2C2C2E),
+                                          borderRadius: BorderRadius.circular(8),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withValues(alpha: 0.3),
+                                              blurRadius: 8,
+                                              offset: const Offset(0, 3),
+                                              spreadRadius: 0,
+                                            ),
+                                          ],
                                         ),
-                                      ),
-                                      child: Center(
-                                        child: Text(
-                                          letter,
-                                          style: const TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w800,
-                                            color: Colors.white,
-                                            shadows: [
-                                              Shadow(
-                                                offset: Offset(0, 1),
-                                                blurRadius: 2,
-                                                color: Colors.black45,
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Container(
+                                              width: 10,
+                                              height: 29,
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFF1C1C1E),
+                                                borderRadius: const BorderRadius.horizontal(left: Radius.circular(4)),
+                                                border: Border.all(color: Colors.black38, width: 1),
                                               ),
-                                            ],
-                                          ),
+                                              child: Center(
+                                                child: Container(
+                                                  width: 1.2,
+                                                  height: 19,
+                                                  color: Colors.white24,
+                                                ),
+                                              ),
+                                            ),
+                                            Row(
+                                              children: _sel!.activeString.split('').map((letter) {
+                                                return Container(
+                                                  width: 22,
+                                                  height: 29,
+                                                  margin: const EdgeInsets.symmetric(horizontal: 1),
+                                                  decoration: BoxDecoration(
+                                                    color: _sel!.activeColor,
+                                                    border: Border.all(
+                                                      color: _sel!.activeColor!.computeLuminance() > 0.5
+                                                          ? Colors.black26
+                                                          : Colors.white24,
+                                                      width: 1,
+                                                    ),
+                                                  ),
+                                                  child: Center(
+                                                    child: Text(
+                                                      letter,
+                                                      style: const TextStyle(
+                                                        fontSize: 14,
+                                                        fontWeight: FontWeight.w800,
+                                                        color: Colors.white,
+                                                        shadows: [
+                                                          Shadow(
+                                                            offset: Offset(0, 1),
+                                                            blurRadius: 2,
+                                                            color: Colors.black45,
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ),
+                                                );
+                                              }).toList(),
+                                            ),
+                                            Container(
+                                              width: 10,
+                                              height: 29,
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFF1C1C1E),
+                                                borderRadius: const BorderRadius.horizontal(right: Radius.circular(4)),
+                                                border: Border.all(color: Colors.black38, width: 1),
+                                              ),
+                                              child: Center(
+                                                child: Container(
+                                                  width: 1.2,
+                                                  height: 19,
+                                                  color: Colors.white24,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                    );
-                                  }).toList(),
-                                ),
-                                Container(
-                                  width: 10,
-                                  height: 29,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF1C1C1E),
-                                    borderRadius: const BorderRadius.horizontal(right: Radius.circular(4)),
-                                    border: Border.all(color: Colors.black38, width: 1),
-                                  ),
-                                  child: Center(
-                                    child: Container(
-                                      width: 1.2,
-                                      height: 19,
-                                      color: Colors.white24,
                                     ),
                                   ),
                                 ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
+                              );
+                            },
                           )
                         else
                           const SizedBox(height: 35),
@@ -2418,7 +2420,6 @@ class _GameScreenState extends State<GameScreen>
     // Release animation controller back to pool
     AnimationManager().releaseController(_confettiController, id: 'confetti');
     // Dispose ValueNotifiers
-    _scoreNotifier.dispose();
     _hintUnlockedNotifier.dispose(); 
     _showConfettiNotifier.dispose();
     _selectionNotifier.dispose();

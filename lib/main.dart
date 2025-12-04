@@ -7,6 +7,8 @@ import 'models/feedback_settings.dart';
 import 'services/feedback_controller.dart';
 import 'services/game_controller.dart';
 import 'services/achievements_service.dart';
+import 'services/wallet_service.dart';
+import 'services/daily_rewards_service.dart';
 
 import 'screens/welcome_screen.dart' as welcome;
 import 'screens/game_screen.dart' as game;
@@ -77,6 +79,8 @@ class _BollyWordGridAppState extends State<BollyWordGridApp>
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => FeedbackSettings()),
+        ChangeNotifierProvider(create: (_) => WalletService.instance..init()),
+        ChangeNotifierProvider(create: (_) => DailyRewardsService.instance..init()),
         ChangeNotifierProvider(create: (_) => AchievementsService()),
         ChangeNotifierProxyProvider<FeedbackSettings, FeedbackController>(
           create: (ctx) =>
